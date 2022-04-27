@@ -9,8 +9,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
 	"gowebsocket/lib/redislib"
 	"gowebsocket/routers"
 	"gowebsocket/servers/grpcserver"
@@ -21,6 +19,9 @@ import (
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 )
 
 func main() {
@@ -58,8 +59,11 @@ func initFile() {
 	gin.DisableConsoleColor()
 
 	// Logging to a file.
-	logFile := viper.GetString("app.logFile")
+	logFile := viper.GetString("app.logFile") //file path is current binary file path
 	f, _ := os.Create(logFile)
+	mydir, _ := os.Getwd()
+
+	fmt.Println("log file path :", mydir, logFile)
 	gin.DefaultWriter = io.MultiWriter(f)
 }
 
@@ -86,10 +90,15 @@ func open() {
 	time.Sleep(200 * time.Microsecond)
 
 	httpUrl := viper.GetString("app.httpUrl")
-	httpUrl = "http://"+httpUrl + "/home/index"
+	httpUrl = "http://" + httpUrl + "/home/index"
 
 	fmt.Println("访问页面体验:", httpUrl)
 
 	cmd := exec.Command("open", httpUrl)
 	cmd.Output()
+	//data, err := cmd.Output()
+	//if err != nil {
+	//	log.Fatalf("failed to call Output(): %v", err)
+	//}
+	//log.Printf("output: %s", data)
 }

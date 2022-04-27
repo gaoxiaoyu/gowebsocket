@@ -30,12 +30,17 @@ type UserOnline struct {
 	Qua           string `json:"qua"`           // qua
 	DeviceInfo    string `json:"deviceInfo"`    // 设备信息
 	IsLogoff      bool   `json:"isLogoff"`      // 是否下线
+	IsCloudMobile bool   `json:"isCloudMobile"` //是否云手机\
+	Group         uint32 `json:"group"`         //云手机机房id
+	Uuid          string `json:"uuid"`          //云手机uuid
+	Name          string `json:"name"`          //云手机name
+	State         uint32 `json:"state"`         //云手机可用状态
 }
 
 /**********************  数据处理  *********************************/
 
 // 用户登录
-func UserLogin(accIp, accPort string, appId uint32, userId string, addr string, loginTime uint64) (userOnline *UserOnline) {
+func UserLogin(accIp, accPort string, appId uint32, userId string, addr string, loginTime uint64, isCloudMobile bool) (userOnline *UserOnline) {
 
 	userOnline = &UserOnline{
 		AccIp:         accIp,
@@ -46,6 +51,26 @@ func UserLogin(accIp, accPort string, appId uint32, userId string, addr string, 
 		LoginTime:     loginTime,
 		HeartbeatTime: loginTime,
 		IsLogoff:      false,
+		IsCloudMobile: isCloudMobile,
+	}
+
+	return
+}
+
+func CloudMobileLogin(accIp, accPort string, group uint32, uuid string, addr string, loginTime uint64, isCloudMobile bool, name string, state uint32) (userOnline *UserOnline) {
+
+	userOnline = &UserOnline{
+		AccIp:         accIp,
+		AccPort:       accPort,
+		Group:         group,
+		Uuid:          uuid,
+		ClientIp:      addr,
+		LoginTime:     loginTime,
+		HeartbeatTime: loginTime,
+		IsLogoff:      false,
+		IsCloudMobile: isCloudMobile,
+		Name:          name,
+		State:         state,
 	}
 
 	return
@@ -75,23 +100,30 @@ func (u *UserOnline) LogOut() {
 // 用户是否在线
 func (u *UserOnline) IsOnline() (online bool) {
 	if u.IsLogoff {
-
+		if u.IsCloudMobile {
+			fmt.Println("用户是否在线 云手机已经下线", u.Group, u.Uuid)
+		} else {
+			fmt.Println("用户是否在线 用户已经下线", u.AppId, u.UserId)
+		}
 		return
 	}
 
 	currentTime := uint64(time.Now().Unix())
 
 	if u.HeartbeatTime < (currentTime - heartbeatTimeout) {
-		fmt.Println("用户是否在线 心跳超时", u.AppId, u.UserId, u.HeartbeatTime)
+		if u.IsCloudMobile {
+		    fmt.Println("用户是否在线 云手机心跳超时", u.Group, u.Uuid, u.HeartbeatTime)
+    	}else {
+	 	    fmt.Println("用户是否在线 用户心跳超时", u.AppId, u.UserId, u.HeartbeatTime)
+	    }
 
 		return
 	}
 
-	if u.IsLogoff {
+	/*if u.IsLogoff {
 		fmt.Println("用户是否在线 用户已经下线", u.AppId, u.UserId)
-
 		return
-	}
+	}*/
 
 	return true
 }

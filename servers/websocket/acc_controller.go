@@ -47,10 +47,10 @@ func LoginController(client *Client, seq string, message []byte) (code uint32, m
 		return
 	}
 
-	client.Login(request.AppId, request.UserId, currentTime)
+	client.Login(request.AppId, request.UserId, currentTime, false)
 
 	// 存储数据
-	userOnline := models.UserLogin(serverIp, serverPort, request.AppId, request.UserId, client.Addr, currentTime)
+	userOnline := models.UserLogin(serverIp, serverPort, request.AppId, request.UserId, client.Addr, currentTime, false)
 	err := cache.SetUserOnlineInfo(client.GetKey(), userOnline)
 	if err != nil {
 		code = common.ServerError
@@ -66,6 +66,7 @@ func LoginController(client *Client, seq string, message []byte) (code uint32, m
 		Client: client,
 	}
 	clientManager.Login <- login
+	//todo@：这里准备写入mysql
 
 	fmt.Println("用户登录 成功", seq, client.Addr, request.UserId)
 
@@ -119,6 +120,60 @@ func HeartbeatController(client *Client, seq string, message []byte) (code uint3
 
 		return
 	}
+
+	return
+}
+
+
+func RegisterReqController(client *Client, seq string, message []byte) (code uint32, msg string, data interface{}) {
+
+	code = common.OK
+	currentTime := uint64(time.Now().Unix())
+
+	request := &models.RegisterReq{}
+	if err := json.Unmarshal(message, request); err != nil {
+		code = common.ParameterIllegal
+		fmt.Println("云手机注册 解析数据失败", seq, err)
+		return
+	}
+
+	fmt.Println("webSocket_request 云手机注册登录", seq, "uuid", request.Uuid)
+
+	if request.State > 3  {   // name的规则也可以放这里匹配
+		code = common.UnauthorizedUserId
+		fmt.Println("云手机注册 错误的上报状态", seq, request.Uuid, request.State)
+		return
+	}
+
+	if !InGroupIds(request.Group) {
+		code = common.Unauthorized
+		fmt.Println("云手机注册来自未配置的机房, seq:", seq, ",group:", request.Group)
+		return
+	}
+
+	client.Login(request.Group, request.Uuid, currentTime, true)
+
+	// 存储数据
+	userOnline := models.CloudMobileLogin(serverIp, serverPort, request.Group, request.Uuid, client.Addr, currentTime, true, request.Name,request.State)
+	err := cache.SetUserOnlineInfo(client.GetKey(), userOnline)
+	if err != nil {
+		code = common.ServerError
+		fmt.Println("云手机注册 SetUserOnlineInfo", seq, err)
+
+		return
+	}
+
+	// 用户登录
+	login := &login{
+		IsCloudmobile: true,
+		Group: request.Group,
+		Uuid: request.Uuid,
+		Client: client,
+	}
+
+	clientManager.Login <- login
+
+	fmt.Println("云手机注册 成功", seq, client.Addr, request.Uuid)
 
 	return
 }

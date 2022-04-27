@@ -20,6 +20,8 @@ import (
 var (
 	clientManager = NewClientManager() // 管理者
 	appIds        = []uint32{101, 102} // 全部的平台
+	groupIds      = []uint32{101, 102} // 全部的机房
+
 
 	serverIp   string
 	serverPort string
@@ -57,23 +59,37 @@ func InAppIds(appId uint32) (inAppId bool) {
 	return
 }
 
+func InGroupIds(groupId uint32) (inGroupIds bool) {
+    inGroupIds = false
+	for _, value := range groupIds {
+		if value == groupId {
+			inGroupIds = true
+
+			return
+		}
+	}
+
+	return
+}
+
 // 启动程序
 func StartWebSocket() {
 
 	serverIp = helper.GetServerIp()
 
 	webSocketPort := viper.GetString("app.webSocketPort")
-	rpcPort := viper.GetString("app.rpcPort")
-
-	serverPort = rpcPort
+	//这里绑定的是错误的IP
+	//rpcPort := viper.GetString("app.rpcPort")
+	//serverPort = rpcPort
 
 	http.HandleFunc("/acc", wsPage)
 
 	// 添加处理程序
 	go clientManager.start()
-	fmt.Println("WebSocket 启动程序成功", serverIp, serverPort)
+	fmt.Println("WebSocket 启动程序成功", serverIp, webSocketPort)
 
-	http.ListenAndServe(":"+webSocketPort, nil)
+	//这里在启动了http server 服务，是client到websocket服务的请求端口，配置是8089
+	http.ListenAndServe(":"+webSocketPort, nil)  
 }
 
 func wsPage(w http.ResponseWriter, req *http.Request) {
@@ -81,12 +97,10 @@ func wsPage(w http.ResponseWriter, req *http.Request) {
 	// 升级协议
 	conn, err := (&websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 		fmt.Println("升级协议", "ua:", r.Header["User-Agent"], "referer:", r.Header["Referer"])
-
 		return true
 	}}).Upgrade(w, req, nil)
 	if err != nil {
 		http.NotFound(w, req)
-
 		return
 	}
 
@@ -98,6 +112,6 @@ func wsPage(w http.ResponseWriter, req *http.Request) {
 	go client.read()
 	go client.write()
 
-	// 用户连接事件
+	// 用户连接事件，只是连接上来，但是没有注册
 	clientManager.Register <- client
 }

@@ -23,11 +23,19 @@ type login struct {
 	AppId  uint32
 	UserId string
 	Client *Client
+	//add for cloudmobile
+	IsCloudmobile bool
+	Group uint32
+	Uuid string
 }
 
 // 读取客户端数据
 func (l *login) GetKey() (key string) {
-	key = GetUserKey(l.AppId, l.UserId)
+	if l.IsCloudmobile {
+		key = GetCloudMobileKey(l.Group, l.Uuid)
+	} else {
+		key = GetUserKey(l.AppId, l.UserId)
+	}
 
 	return
 }
@@ -42,6 +50,12 @@ type Client struct {
 	FirstTime     uint64          // 首次连接事件
 	HeartbeatTime uint64          // 用户上次心跳时间
 	LoginTime     uint64          // 登录时间 登录以后才有
+	//add for cloudmobile
+	IsCloudmobile bool
+	Group  uint32 //云手机机房id
+	Name   string  //云手机名字
+	Uuid  string   //云手机Uuid
+	State uint32  //云手机状态
 }
 
 // 初始化
@@ -59,7 +73,11 @@ func NewClient(addr string, socket *websocket.Conn, firstTime uint64) (client *C
 
 // 读取客户端数据
 func (c *Client) GetKey() (key string) {
-	key = GetUserKey(c.AppId, c.UserId)
+	if c.IsCloudmobile {
+		key = GetCloudMobileKey(c.Group, c.Uuid)
+	} else {
+		key = GetUserKey(c.AppId, c.UserId)
+	}
 
 	return
 }
@@ -144,9 +162,14 @@ func (c *Client) close() {
 }
 
 // 用户登录
-func (c *Client) Login(appId uint32, userId string, loginTime uint64) {
+func (c *Client) Login(appId uint32, userId string, loginTime uint64, isCloudmobile bool) {
+	if isCloudmobile {
 	c.AppId = appId
-	c.UserId = userId
+	c.UserId = userId	
+    } else {
+		c.Group = appId
+		c.Uuid = userId
+	}
 	c.LoginTime = loginTime
 	// 登录成功=心跳一次
 	c.Heartbeat(loginTime)
@@ -172,7 +195,7 @@ func (c *Client) IsHeartbeatTimeout(currentTime uint64) (timeout bool) {
 func (c *Client) IsLogin() (isLogin bool) {
 
 	// 用户登录了
-	if c.UserId != "" {
+	if c.UserId != "" || c.Uuid != "" {
 		isLogin = true
 
 		return

@@ -136,7 +136,7 @@ func (s *server) GetUserList(c context.Context, req *protobuf.GetUserListReq) (r
 // rpc server
 // link::https://github.com/grpc/grpc-go/blob/master/examples/helloworld/greeter_server/main.go
 func Init() {
-
+    //grpc port， 在config中是9001
 	rpcPort := viper.GetString("app.rpcPort")
 	fmt.Println("rpc server 启动", rpcPort)
 

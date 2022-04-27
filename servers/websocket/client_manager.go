@@ -18,9 +18,9 @@ import (
 
 // 连接管理
 type ClientManager struct {
-	Clients     map[*Client]bool   // 全部的连接
+	Clients     map[*Client]bool   // 全部的连接,还没有注册成功的时候
 	ClientsLock sync.RWMutex       // 读写锁
-	Users       map[string]*Client // 登录的用户 // appId+uuid
+	Users       map[string]*Client // 登录的用户 // appId+uuid，注册成功才加入到这里
 	UserLock    sync.RWMutex       // 读写锁
 	Register    chan *Client       // 连接连接处理
 	Login       chan *login        // 用户登录处理
@@ -44,6 +44,13 @@ func NewClientManager() (clientManager *ClientManager) {
 // 获取用户key
 func GetUserKey(appId uint32, userId string) (key string) {
 	key = fmt.Sprintf("%d_%s", appId, userId)
+
+	return
+}
+
+// 获取云手机key
+func GetCloudMobileKey(group uint32, uuid string) (key string) {
+	key = fmt.Sprintf("%d_%s", group, uuid)
 
 	return
 }
@@ -126,10 +133,15 @@ func (manager *ClientManager) EventLogin(login *login) {
 		manager.AddUsers(userKey, login.Client)
 	}
 
-	fmt.Println("EventLogin 用户登录", client.Addr, login.AppId, login.UserId)
+	if login.IsCloudmobile {
+		fmt.Println("EventLogin 云手机登录", client.Addr, login.Group, login.Uuid)
+	} else {
+	    fmt.Println("EventLogin 普通用户登录", client.Addr, login.AppId, login.UserId)
+		orderId := helper.GetOrderIdTime()
+		SendUserMessageAll(login.AppId, login.UserId, orderId, models.MessageCmdEnter, "哈喽~")
+	}
 
-	orderId := helper.GetOrderIdTime()
-	SendUserMessageAll(login.AppId, login.UserId, orderId, models.MessageCmdEnter, "哈喽~")
+
 
 }
 
@@ -138,7 +150,12 @@ func (manager *ClientManager) EventUnregister(client *Client) {
 	manager.DelClients(client)
 
 	// 删除用户连接
-	userKey := GetUserKey(client.AppId, client.UserId)
+	var userKey string
+	if client.IsCloudmobile {
+		userKey = GetUserKey(client.Group, client.Uuid)
+	} else {
+		userKey = GetUserKey(client.AppId, client.UserId)
+	}
 	manager.DelUsers(userKey)
 
 	// 清除redis登录数据
@@ -150,13 +167,17 @@ func (manager *ClientManager) EventUnregister(client *Client) {
 
 	// 关闭 chan
 	// close(client.Send)
-
-	fmt.Println("EventUnregister 用户断开连接", client.Addr, client.AppId, client.UserId)
-
-	if client.UserId != "" {
-		orderId := helper.GetOrderIdTime()
-		SendUserMessageAll(client.AppId, client.UserId, orderId, models.MessageCmdExit, "用户已经离开~")
+	if client.IsCloudmobile {
+		fmt.Println("EventUnregister 云手机断开连接", client.Addr, client.Group, client.Uuid)
+	} else {
+	    fmt.Println("EventUnregister 用户断开连接", client.Addr, client.AppId, client.UserId)
+		if client.UserId != "" {
+			orderId := helper.GetOrderIdTime()
+			SendUserMessageAll(client.AppId, client.UserId, orderId, models.MessageCmdExit, "用户已经离开~")
+		}
 	}
+
+
 }
 
 // 管道处理程序
@@ -231,7 +252,11 @@ func ClearTimeoutConnections() {
 
 	for client := range clientManager.Clients {
 		if client.IsHeartbeatTimeout(currentTime) {
-			fmt.Println("心跳时间超时 关闭连接", client.Addr, client.UserId, client.LoginTime, client.HeartbeatTime)
+			if client.IsCloudmobile {
+			fmt.Println("云手机心跳时间超时 关闭连接", client.Addr, client.Uuid, client.LoginTime, client.HeartbeatTime)
+			} else{
+				fmt.Println("用户心跳时间超时 关闭连接", client.Addr, client.UserId, client.LoginTime, client.HeartbeatTime)
+			}
 
 			client.Socket.Close()
 		}

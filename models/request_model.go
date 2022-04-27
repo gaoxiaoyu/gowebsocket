@@ -26,3 +26,18 @@ type Login struct {
 type HeartBeat struct {
 	UserId string `json:"userId,omitempty"`
 }
+
+// 登录请求数据
+// 例子： {"seq":"2323","cmd":"register","data":{"uuid":"","state":0,"name":"xxx","group":0}}
+type RegisterReq struct {
+	Uuid  string `json:"uuid"`  //云手机的uuid
+	State uint32 `json:"state"` //0=good 1=bad 2=busy
+	Name  string `json:"name,omitempty"`
+	Group uint32 `json:"group,omitempty"`
+}
+
+// 心跳请求数据
+// 例子： {"seq":"2324","cmd":"cloudmobileheartbeat","data":{"state"=0}}
+type CloudMobileHeartBeat struct {
+	State uint32 `json:"state"` //0=good 1=bad 2=busy
+}

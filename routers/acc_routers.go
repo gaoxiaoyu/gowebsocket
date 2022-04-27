@@ -12,7 +12,9 @@ import (
 )
 
 // Websocket 路由
+// ws消息处理函数都在这里注册
 func WebsocketInit() {
 	websocket.Register("login", websocket.LoginController)
 	websocket.Register("heartbeat", websocket.HeartbeatController)
+	websocket.Register("register", websocket.RegisterReqController)
 }

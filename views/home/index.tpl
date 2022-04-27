@@ -350,7 +350,9 @@
            person =  getName();
            // person = randomNumber(10000, 99999)
             console.log("用户准备登陆:" + person);
-            ws.send('{"seq":"' + sendId() + '","cmd":"login","data":{"userId":"' + person + '","appId":101}}');
+            //ws.send('{"seq":"' + sendId() + '","cmd":"login","data":{"userId":"' + person + '","appId":101}}');
+            ws.send('{"seq":"' + sendId() + '","cmd":"register","data":{"uuid":"' + person +
+            '","group":101,"state":0,"name":"huawei_mobile"}}');
 
             // 定时心跳
             setInterval(heartbeat, 30 * 1000)
@@ -385,8 +387,8 @@
         // 心跳
         function heartbeat() {
             console.log("定时心跳:" + person);
-            ws.send('{"seq":"' + sendId() + '","cmd":"heartbeat","data":{}}');
-
+            //ws.send('{"seq":"' + sendId() + '","cmd":"heartbeat","data":{}}');
+            ws.send('{"seq":"' + sendId() + '","cmd":"heartbeat","data":{"state":0}}');
         }
 
         // 点击按钮事件

@@ -22,7 +22,7 @@ var (
 	handlersRWMutex sync.RWMutex
 )
 
-// 注册
+// 注册ws连接成功之后的json消息处理函数
 func Register(key string, value DisposeFunc) {
 	handlersRWMutex.Lock()
 	defer handlersRWMutex.Unlock()
