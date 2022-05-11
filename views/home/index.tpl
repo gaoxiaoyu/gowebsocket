@@ -254,6 +254,8 @@
         </div>
         <script src="http://91vh.com/js/jquery-2.1.4.min.js"></script>
         <script type="text/javascript">
+        let current_state = 0
+
         function currentTime() {
             let timeStamp = (new Date()).valueOf();
 
@@ -375,6 +377,9 @@
                 data = data_array.response.data
                 addChatWith(msg("管理员", data.from + " 悄悄的离开了~"))
                 delUserList(data.from)
+            } else if (date_array.cmd === "assign") {
+                ws.send('{"seq":"' + data_array.seq + '","cmd":"assign","data":{"code":"200,"codeMsg":"Success","uid":date_array.response.date.uid}}');
+                current_state = 2
             }
 
 

@@ -10,6 +10,8 @@ package models
 import (
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 const (
@@ -18,6 +20,7 @@ const (
 
 // 用户在线状态
 type UserOnline struct {
+	Id            uint64 `json:"id" gorm:"primaryKey"`
 	AccIp         string `json:"accIp"`         // acc Ip
 	AccPort       string `json:"accPort"`       // acc 端口
 	AppId         uint32 `json:"appId"`         // appId
@@ -35,6 +38,14 @@ type UserOnline struct {
 	Uuid          string `json:"uuid"`          //云手机uuid
 	Name          string `json:"name"`          //云手机name
 	State         uint32 `json:"state"`         //云手机可用状态
+	Status        uint32 `json:"status"`        //管理后台设置的云手机状态
+	RtcChannel    uint64 `json:"rtcchannel"`    //rtc channel
+	SignalChannel uint64 `json:"signalchannel"` //signal channel
+	gorm.Model
+}
+
+func (UserOnline) TableName() string {
+	return "UserOnlines"
 }
 
 /**********************  数据处理  *********************************/
@@ -112,10 +123,10 @@ func (u *UserOnline) IsOnline() (online bool) {
 
 	if u.HeartbeatTime < (currentTime - heartbeatTimeout) {
 		if u.IsCloudMobile {
-		    fmt.Println("用户是否在线 云手机心跳超时", u.Group, u.Uuid, u.HeartbeatTime)
-    	}else {
-	 	    fmt.Println("用户是否在线 用户心跳超时", u.AppId, u.UserId, u.HeartbeatTime)
-	    }
+			fmt.Println("用户是否在线 云手机心跳超时", u.Group, u.Uuid, u.HeartbeatTime)
+		} else {
+			fmt.Println("用户是否在线 用户心跳超时", u.AppId, u.UserId, u.HeartbeatTime)
+		}
 
 		return
 	}

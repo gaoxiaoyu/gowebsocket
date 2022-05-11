@@ -22,8 +22,11 @@ func Init(router *gin.Engine) {
 	{
 		userRouter.GET("/list", user.List)
 		userRouter.GET("/online", user.Online)
+		userRouter.GET("/StartXRLive", user.StartXRLive)
+		userRouter.GET("/StopXRLive", user.StopXRLive)
 		userRouter.POST("/sendMessage", user.SendMessage)
 		userRouter.POST("/sendMessageAll", user.SendMessageAll)
+
 	}
 
 	// 系统

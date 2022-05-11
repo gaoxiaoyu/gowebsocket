@@ -9,13 +9,14 @@ package user
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"gowebsocket/common"
 	"gowebsocket/controllers"
 	"gowebsocket/lib/cache"
 	"gowebsocket/models"
 	"gowebsocket/servers/websocket"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 // 查看全部在线用户
@@ -113,4 +114,99 @@ func SendMessageAll(c *gin.Context) {
 
 	controllers.Response(c, common.OK, "", data)
 
+}
+
+//func StartXRLive(c *gin.Context) {
+//
+//	userId := c.PostForm("userId")
+//	//token := c.Query("token")
+//	//todo@: verifytoken，等鹏爷给接口
+//	fmt.Println("StartXRLive 请求XRLive from user：", userId)
+//
+//	ch := make(chan *websocket.AllocateInfo)
+//	quit := make(chan bool)
+//
+//	data := make(map[string]interface{})
+//
+//	uid, _ := strconv.Atoi(userId)
+//	result, _ := websocket.AllocateCloudMobile(uint32(uid), ch)
+//	if !result {
+//		data := make(map[string]interface{})
+//		data["userId"] = userId
+//		controllers.Response(c, common.NoResource, "资源不足", data)
+//		return
+//	}
+//	var allocateResult *websocket.AllocateInfo
+//
+//	select {
+//	case allocateResult = <-ch:
+//		fmt.Println("Got allocate result: ", allocateResult)
+//
+//	case <-time.After(3 * time.Second):
+//		fmt.Println("StartXRLive TimeOut")
+//		quit <- true
+//	}
+//	<-quit
+//
+//	data["userId"] = userId
+//	data["code"] = allocateResult.Code
+//	data["rtc_channel"] = allocateResult.Rtc_channel
+//	data["signal_channel"] = allocateResult.Signal_channel
+//	data["cloudmobile_uuid"] = allocateResult.Uuid
+//	data["cloudmobile_group"] = allocateResult.Group
+//
+//	controllers.Response(c, common.OK, "", data)
+//}
+// how to test:
+// curl http://192.168.2.9:8080/user/StartXRLive?userId=123
+func StartXRLive(c *gin.Context) {
+
+	userId := c.Query("userId")
+	//token := c.Query("token")
+	//todo@: verifytoken，等鹏爷给接口
+	fmt.Println("StartXRLive 请求XRLive from user：", userId)
+
+	data := make(map[string]interface{})
+
+	uid, _ := strconv.Atoi(userId)
+	result, rtcChannel, signalChannel := websocket.AllocateCloudMobile(uint32(uid))
+	fmt.Println("StartXRLive 云手机分配结果", userId, result, uint16(rtcChannel), uint16(signalChannel))
+
+	if !result {
+		data := make(map[string]interface{})
+		data["userId"] = userId
+		controllers.Response(c, common.NoResource, "资源不足", data)
+		return
+	}
+
+	data["userId"] = userId
+	data["rtcChannel"] = uint16(rtcChannel)
+	data["signalChannel"] = uint16(signalChannel)
+
+	controllers.Response(c, common.OK, "", data)
+}
+
+// curl http://192.168.2.9:8080/user/StopXRLive?userId=123
+func StopXRLive(c *gin.Context) {
+
+	userId := c.Query("userId")
+	//token := c.Query("token")
+	//todo@: verifytoken，等鹏爷给接口
+	fmt.Println("StopXRLive 停止XRLive from user：", userId)
+
+	data := make(map[string]interface{})
+	data["userId"] = userId
+
+	uid, _ := strconv.Atoi(userId)
+	result := websocket.RecyleCloudMobile(uint32(uid))
+	fmt.Println("StopXRLive 云手机回收结果", userId, result)
+
+
+	if !result {
+		controllers.Response(c, common.NoResource, "资源不足", data)
+		return
+	}
+
+
+	controllers.Response(c, common.OK, "", data)
 }

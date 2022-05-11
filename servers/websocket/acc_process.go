@@ -13,9 +13,10 @@ import (
 	"gowebsocket/common"
 	"gowebsocket/models"
 	"sync"
+	"go.uber.org/zap"
 )
 
-type DisposeFunc func(client *Client, seq string, message []byte) (code uint32, msg string, data interface{})
+type DisposeFunc func(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{})
 
 var (
 	handlers        = make(map[string]DisposeFunc)
@@ -45,6 +46,7 @@ func ProcessData(client *Client, message []byte) {
 
 	fmt.Println("处理数据", client.Addr, string(message))
 
+
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("处理数据 stop", r)
@@ -60,6 +62,7 @@ func ProcessData(client *Client, message []byte) {
 
 		return
 	}
+	zap.S().Info("ProcessData from client: ", client.Addr, " command:", request.Cmd)
 
 	requestData, err := json.Marshal(request.Data)
 	if err != nil {
@@ -73,9 +76,10 @@ func ProcessData(client *Client, message []byte) {
 	cmd := request.Cmd
 
 	var (
-		code uint32
-		msg  string
-		data interface{}
+		autoRsp bool = true
+		code    uint32
+		msg     string
+		data    interface{}
 	)
 
 	// request
@@ -83,26 +87,29 @@ func ProcessData(client *Client, message []byte) {
 
 	// 采用 map 注册的方式
 	if value, ok := getHandlers(cmd); ok {
-		code, msg, data = value(client, seq, requestData)
+		autoRsp, code, msg, data = value(client, seq, requestData)
 	} else {
 		code = common.RoutingNotExist
 		fmt.Println("处理数据 路由不存在", client.Addr, "cmd", cmd)
 	}
 
-	msg = common.GetErrorMessage(code, msg)
+	if autoRsp {
 
-	responseHead := models.NewResponseHead(seq, cmd, code, msg, data)
+		msg = common.GetErrorMessage(code, msg)
 
-	headByte, err := json.Marshal(responseHead)
-	if err != nil {
-		fmt.Println("处理数据 json Marshal", err)
+		responseHead := models.NewResponseHead(seq, cmd, code, msg, data)
 
-		return
+		headByte, err := json.Marshal(responseHead)
+		if err != nil {
+			fmt.Println("处理数据 json Marshal", err)
+
+			return
+		}
+
+		client.SendMsg(headByte)
+
+		fmt.Println("acc_response send", client.Addr, client.AppId, client.UserId, "cmd", cmd, "code", code, "data", data)
 	}
-
-	client.SendMsg(headByte)
-
-	fmt.Println("acc_response send", client.Addr, client.AppId, client.UserId, "cmd", cmd, "code", code)
 
 	return
 }

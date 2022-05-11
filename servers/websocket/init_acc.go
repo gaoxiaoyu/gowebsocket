@@ -75,6 +75,12 @@ func InGroupIds(groupId uint32) (inGroupIds bool) {
 // 启动程序
 func StartWebSocket() {
 
+	if err := initSnowFlake(); err != nil {
+		fmt.Println("StartWebSocket 启动雪花算法失败， err ", err)
+
+	}
+
+
 	serverIp = helper.GetServerIp()
 
 	webSocketPort := viper.GetString("app.webSocketPort")

@@ -21,21 +21,25 @@ type ClientManager struct {
 	Clients     map[*Client]bool   // 全部的连接,还没有注册成功的时候
 	ClientsLock sync.RWMutex       // 读写锁
 	Users       map[string]*Client // 登录的用户 // appId+uuid，注册成功才加入到这里
+	AllocateRecord map[uint32]*Client //用户uid 和云手机分配的记录
 	UserLock    sync.RWMutex       // 读写锁
 	Register    chan *Client       // 连接连接处理
 	Login       chan *login        // 用户登录处理
 	Unregister  chan *Client       // 断开连接处理程序
 	Broadcast   chan []byte        // 广播 向全部成员发送数据
+	Allocated   chan uint32        //删除分配记录
 }
 
 func NewClientManager() (clientManager *ClientManager) {
 	clientManager = &ClientManager{
 		Clients:    make(map[*Client]bool),
 		Users:      make(map[string]*Client),
+		AllocateRecord:make(map[uint32]*Client),
 		Register:   make(chan *Client, 1000),
 		Login:      make(chan *login, 1000),
 		Unregister: make(chan *Client, 1000),
 		Broadcast:  make(chan []byte, 1000),
+		Allocated:  make(chan uint32, 1000),
 	}
 
 	return
@@ -74,12 +78,12 @@ func (manager *ClientManager) DelClients(client *Client) {
 }
 
 // 获取用户的连接
-func (manager *ClientManager) GetUserClient(appId uint32, userId string) (client *Client) {
+func (manager *ClientManager) GetUserClient(group uint32, uuid string) (client *Client) {
 
 	manager.UserLock.RLock()
 	defer manager.UserLock.RUnlock()
 
-	userKey := GetUserKey(appId, userId)
+	userKey := GetCloudMobileKey(group, uuid)
 	if value, ok := manager.Users[userKey]; ok {
 		client = value
 	}
@@ -101,6 +105,32 @@ func (manager *ClientManager) DelUsers(key string) {
 	defer manager.UserLock.Unlock()
 
 	delete(manager.Users, key)
+}
+
+func (manager *ClientManager) GetAllocateRecord(uid uint32) (client *Client) {
+	manager.UserLock.Lock()
+	defer manager.UserLock.Unlock()
+
+	if value, ok := manager.AllocateRecord[uid]; ok {
+		client = value
+	}
+
+	return
+}
+
+
+func (manager *ClientManager) AddAllocateRecord(uid uint32, client *Client) {
+	manager.UserLock.Lock()
+	defer manager.UserLock.Unlock()
+
+	manager.AllocateRecord[uid] = client
+}
+
+func (manager *ClientManager) DelAllocateRecord(uid uint32) {
+	manager.UserLock.Lock()
+	defer manager.UserLock.Unlock()
+	
+	delete(manager.AllocateRecord, uid)
 }
 
 // 向全部成员(除了自己)发送数据
@@ -136,12 +166,10 @@ func (manager *ClientManager) EventLogin(login *login) {
 	if login.IsCloudmobile {
 		fmt.Println("EventLogin 云手机登录", client.Addr, login.Group, login.Uuid)
 	} else {
-	    fmt.Println("EventLogin 普通用户登录", client.Addr, login.AppId, login.UserId)
+		fmt.Println("EventLogin 普通用户登录", client.Addr, login.AppId, login.UserId)
 		orderId := helper.GetOrderIdTime()
 		SendUserMessageAll(login.AppId, login.UserId, orderId, models.MessageCmdEnter, "哈喽~")
 	}
-
-
 
 }
 
@@ -170,13 +198,12 @@ func (manager *ClientManager) EventUnregister(client *Client) {
 	if client.IsCloudmobile {
 		fmt.Println("EventUnregister 云手机断开连接", client.Addr, client.Group, client.Uuid)
 	} else {
-	    fmt.Println("EventUnregister 用户断开连接", client.Addr, client.AppId, client.UserId)
+		fmt.Println("EventUnregister 用户断开连接", client.Addr, client.AppId, client.UserId)
 		if client.UserId != "" {
 			orderId := helper.GetOrderIdTime()
 			SendUserMessageAll(client.AppId, client.UserId, orderId, models.MessageCmdExit, "用户已经离开~")
 		}
 	}
-
 
 }
 
@@ -205,6 +232,9 @@ func (manager *ClientManager) start() {
 					close(conn.Send)
 				}
 			}
+		case userId := <-manager.Allocated:
+			manager.DelAllocateRecord(userId)
+
 		}
 	}
 }
@@ -246,6 +276,30 @@ func GetUserClient(appId uint32, userId string) (client *Client) {
 	return
 }
 
+// 设置云手机被分配状态
+func SetAllocateStatus(group uint32, uuid string, userId uint32) (result bool) {
+	client := clientManager.GetUserClient(group, uuid)
+	if client != nil {
+		client.Allocated = true
+		client.AllocateTime = uint64(time.Now().Unix())
+		client.AllocateUid = userId
+		result = true
+	}
+
+	return
+}
+func ResetAllocateStatus(group uint32, uuid string) (result bool) {
+	client := clientManager.GetUserClient(group, uuid)
+	if client != nil {
+		client.Allocated = false
+		client.AllocateTime = 0
+		client.AllocateUid = 0
+		result = true
+	}
+
+	return
+}
+
 // 定时清理超时连接
 func ClearTimeoutConnections() {
 	currentTime := uint64(time.Now().Unix())
@@ -253,8 +307,8 @@ func ClearTimeoutConnections() {
 	for client := range clientManager.Clients {
 		if client.IsHeartbeatTimeout(currentTime) {
 			if client.IsCloudmobile {
-			fmt.Println("云手机心跳时间超时 关闭连接", client.Addr, client.Uuid, client.LoginTime, client.HeartbeatTime)
-			} else{
+				fmt.Println("云手机心跳时间超时 关闭连接", client.Addr, client.Uuid, client.LoginTime, client.HeartbeatTime)
+			} else {
 				fmt.Println("用户心跳时间超时 关闭连接", client.Addr, client.UserId, client.LoginTime, client.HeartbeatTime)
 			}
 
@@ -271,6 +325,25 @@ func GetUserList() (userList []string) {
 
 	for _, v := range clientManager.Users {
 		userList = append(userList, v.UserId)
+	}
+
+	return
+}
+
+// 获取第一个空闲云手机返回
+func GetIdleCloudMobile() (found bool, group uint32, uuid string) {
+
+    //todo@ 记得加锁
+	fmt.Println("GetIdleCloudMobile called")
+
+	for _, v := range clientManager.Users {
+		fmt.Println("GetIdleCloudMobile, user ", v.IsCloudmobile, v.State, v.Allocated )
+
+		if v.IsCloudmobile && v.State == Good && !v.Allocated {
+			found = true
+			group = v.Group
+			uuid = v.Uuid
+		}
 	}
 
 	return
