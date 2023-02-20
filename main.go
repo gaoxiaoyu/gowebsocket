@@ -9,12 +9,12 @@ package main
 
 import (
 	"fmt"
+	"gowebsocket/lib/database"
 	"gowebsocket/lib/redislib"
 	"gowebsocket/routers"
 	"gowebsocket/servers/grpcserver"
 	"gowebsocket/servers/task"
 	"gowebsocket/servers/websocket"
-	"gowebsocket/lib/database"
 	"io"
 	"net/http"
 	"os"
