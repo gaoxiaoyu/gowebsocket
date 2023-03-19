@@ -41,6 +41,7 @@ func (l *Logger) Warn(msg string, fields ...Field) {
 func (l *Logger) Error(msg string, fields ...Field) {
 	l.l.Error(msg, fields...)
 }
+
 func (l *Logger) DPanic(msg string, fields ...Field) {
 	l.l.DPanic(msg, fields...)
 }
@@ -49,6 +50,22 @@ func (l *Logger) Panic(msg string, fields ...Field) {
 }
 func (l *Logger) Fatal(msg string, fields ...Field) {
 	l.l.Fatal(msg, fields...)
+}
+
+func (l *Logger) Debugw(msg string, keyandvalue ...interface{}) {
+	l.l.Sugar().Debugw(msg, keyandvalue...)
+}
+
+func (l *Logger) Infow(msg string, keyandvalue ...interface{}) {
+	l.l.Sugar().Infow(msg, keyandvalue...)
+}
+
+func (l *Logger) Warnw(msg string, keyandvalue ...interface{}) {
+	l.l.Sugar().Warnw(msg, keyandvalue...)
+}
+
+func (l *Logger) Errorw(msg string, keyandvalue ...interface{}) {
+	l.l.Sugar().Errorw(msg, keyandvalue...)
 }
 
 // function variables for all field types
@@ -110,6 +127,10 @@ var (
 	Panic  = std.Panic
 	Fatal  = std.Fatal
 	Debug  = std.Debug
+	Debugw = std.Debugw
+	Infow  = std.Infow
+	Warnw  = std.Warnw
+	Errorw = std.Errorw
 )
 
 // not safe for concurrent use
@@ -122,6 +143,10 @@ func ResetDefault(l *Logger) {
 	Panic = std.Panic
 	Fatal = std.Fatal
 	Debug = std.Debug
+	Debugw = std.Debugw
+	Infow = std.Infow
+	Warnw = std.Warnw
+	Errorw = std.Errorw
 }
 
 type Logger struct {
@@ -200,7 +225,8 @@ func New(writer io.Writer, level Level, opts ...Option) *Logger {
 	}
 	cfg := zap.NewProductionConfig()
 	cfg.EncoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-		enc.AppendString(t.Format("2006-01-02T15:04:05.000Z0700"))
+		//enc.AppendString(t.Format("2006-01-02T15:04:05.000Z0700"))
+		enc.AppendString(t.Format("2006-01-02T15:04:05.000"))
 	}
 
 	core := zapcore.NewCore(

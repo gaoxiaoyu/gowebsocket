@@ -9,7 +9,9 @@ package main
 
 import (
 	"fmt"
+	"gowebsocket/helper"
 	"gowebsocket/lib/database"
+	"gowebsocket/lib/log"
 	"gowebsocket/lib/redislib"
 	"gowebsocket/routers"
 	"gowebsocket/servers/grpcserver"
@@ -19,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	//"gowebsocket/lib/log"
@@ -34,6 +37,8 @@ func main() {
 
 	initFile()
 	initLogger()
+	initZapLogerWithRotate()
+	defer log.Sync()
 
 	initRedis()
 	database.InitDB()
@@ -96,15 +101,25 @@ func initLogger() {
 	defer logger.Sync()
 
 	zap.ReplaceGlobals(logger)
-	//defer undo()
 	zap.L().Info("replaced zap's global loggers")
+}
 
-	sugar := logger.Sugar()
-	sugar.Infof("name is %s", "x")                            // 格式化输出
-	sugar.Infow("this is a test log", "name", "x", "age", 20) // 第二个开始每一对是一个键值
-	// 使用全局的 SugaredLogger
-	zap.S().Info("this is a test log: pid=", os.Getpid())
+func initZapLogerWithRotate() {
+	logPath := "./logs/"
+	if err := helper.PathGuarantee(logPath); err != nil {
+		panic(err)
+	}
 
+	_, processname := filepath.Split(os.Args[0])
+
+	file, err := os.OpenFile(logPath+processname+".log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+
+	if err != nil {
+		panic(err)
+	}
+
+	logger := log.New(file, log.DebugLevel, zap.WithCaller(true), zap.Fields(zap.Any("pid", os.Getpid())), zap.AddCallerSkip(1))
+	log.ResetDefault(logger)
 }
 
 func initConfig() {

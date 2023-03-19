@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"gowebsocket/common"
 	"gowebsocket/lib/cache"
-	"gowebsocket/models"
 	"gowebsocket/lib/database"
+	"gowebsocket/models"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -93,20 +93,18 @@ func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bo
 	}
 
 	zap.S().Info("Heartbeat from: ", client.Addr, "seq: ", seq, "state:", request.State)
-    if result, allocateUid := client.SetState(request.State); result && allocateUid != 0 {
-		zap.S().Info("Heartbeat, setState success, restore allocate history for uid: ",  allocateUid)
+	if result, allocateUid := client.SetState(request.State); result && allocateUid != 0 {
+		zap.S().Info("Heartbeat, setState success, restore allocate history for uid: ", allocateUid)
 		if !ResetAllocateStatus(client.Group, client.Uuid) {
 			fmt.Println("HeartbeatController, 重置云手机分配状态失败 ", client.Group, client.Uuid)
 		}
-		clientManager.Allocated <- allocateUid 
+		clientManager.Allocated <- allocateUid
 
 	}
 
 	data = &models.HeartBeatRsp{
-		State:    client.State,
+		State: client.State,
 	}
-
-
 
 	fmt.Println("webSocket_request 心跳接口", client.AppId, client.UserId)
 
@@ -116,8 +114,6 @@ func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bo
 
 		return
 	}
-
-	
 
 	userOnline, err := cache.GetUserOnlineInfo(client.GetKey())
 	if err != nil {
@@ -147,11 +143,10 @@ func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bo
 	return
 }
 
-//register req
-//{"seq":"2323","cmd":"register","data":{"uuid":"","state":0,"name":"xxx","group":0}}
+// register req
+// {"seq":"2323","cmd":"register","data":{"uuid":"","state":0,"name":"xxx","group":0}}
 func RegisterReqController(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{}) {
 	zap.S().Info("RegisterReq from: ", client.Addr, "seq: ", seq)
-
 
 	autoRsp = true
 	code = common.OK
@@ -201,12 +196,9 @@ func RegisterReqController(client *Client, seq string, message []byte) (autoRsp 
 		return
 	}
 
-
 	if err := database.DB().Debug().Create(userOnline).Error; err != nil {
 		fmt.Println("write cloud mobile to db failed ", err)
 	}
-
-	
 
 	// 用户登录
 	login := &login{
@@ -223,8 +215,7 @@ func RegisterReqController(client *Client, seq string, message []byte) (autoRsp 
 	return
 }
 
-// AssignedRsp例子
-//{"seq":"2323","cmd":"assign","data":{"code":200,"codeMsg":"Success", "uid":uid}}
+// {"seq":"2323","cmd":"assign","data":{"code":200,"codeMsg":"Success", "uid":uid}}
 func AssignedRspController(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{}) {
 
 	autoRsp = false
@@ -263,8 +254,7 @@ func AssignedRspController(client *Client, seq string, message []byte) (autoRsp 
 	return
 }
 
-// RecyleRsp例子 回收云手机响应
-//{"seq":"2323","cmd":"recyle","data":{"code":200,"codeMsg":"Success", "uid":uid}}
+// {"seq":"2323","cmd":"recyle","data":{"code":200,"codeMsg":"Success", "uid":uid}}
 func RecyleRspController(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{}) {
 
 	autoRsp = false
@@ -281,4 +271,3 @@ func RecyleRspController(client *Client, seq string, message []byte) (autoRsp bo
 
 	return
 }
-
