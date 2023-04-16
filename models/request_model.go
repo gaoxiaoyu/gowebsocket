@@ -25,9 +25,7 @@ type Login struct {
 // 心跳请求数据
 // {"seq":"2324","cmd":"heartbeat","data":{"state"=0}}
 type HeartBeat struct {
-	Uuid string `json:"Uuid,omitempty"`
 	State uint32 `json:"state"` //0=good&idle 1=bad 2=busy
-	Group uint32 `json:"group,omitempty"`
 }
 
 // 登录请求数据
@@ -44,19 +42,3 @@ type RegisterReq struct {
 type CloudMobileHeartBeat struct {
 	State uint32 `json:"state"` //0=good 1=bad 2=busy
 }
-
-// AssignedRsp，分配请求响应
-// 例子：{"seq":"2323","cmd":"assign","data":{"code":200,"codeMsg":"Success", "uid":uid}}
-type AssignedRsp struct {
-	Code  uint32 `json:"code"`  //
-	CodeMsg string `json:"codemsg"` //
-	Userid uint32 `json:"uid"`
-}
-
-type RecyleRsp struct {
-	Code  uint32 `json:"code"`  //
-	CodeMsg string `json:"codemsg"` //
-	Userid uint32 `json:"uid"`
-}
-
-

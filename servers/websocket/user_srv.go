@@ -12,11 +12,9 @@ import (
 	"fmt"
 	"gowebsocket/lib/cache"
 	"gowebsocket/models"
-	"gowebsocket/common"
-	"gowebsocket/helper"
 	"gowebsocket/servers/grpcclient"
 	"time"
-	"encoding/json"
+
 	"github.com/bwmarrin/snowflake"
 	"github.com/go-redis/redis"
 )
@@ -142,155 +140,6 @@ func SendUserMessageAll(appId uint32, userId string, msgId, cmd, message string)
 	}
 
 	return
-}
-
-//func AllocateCloudMobile(userId uint32, ch chan *AllocateInfo) (sendResults bool, err error) {
-//	//找到一个空闲的云手机
-//	found, group, uuid := GetIdleCloudMobile()
-//	if !found {
-//		allocateInfo := &AllocateInfo{
-//			Code: common.NoResource,
-//		}
-//		ch <- allocateInfo
-//		return
-//	}
-//
-//	//设为待分配状态
-//	if !SetAllocateStatus(group, uuid) {
-//		allocateInfo := &AllocateInfo{
-//			Code: common.NoResource,
-//		}
-//		ch <- allocateInfo
-//		return
-//	}
-//	//保存channle，等待分配结果的回复;
-//	//分配rtc和signal channel给云手机
-//	client := GetUserClient(group, uuid)
-//	client.ch = ch
-//	client.RtcChannel = getChannelId()
-//	client.SignalChannel = getChannelId()
-//
-//	//发送AllocateReq给该手机
-//	var (
-//		code uint32
-//		msg  string
-//	)
-//
-//	code = common.OK
-//	msg = common.GetErrorMessage(code, msg)
-//	seq := helper.GetOrderIdTime()
-//	cmd := "assign"
-//
-//	assignedReq := &models.AssignedReq{
-//		Uid:            userId,
-//		Rtc_channel:    client.RtcChannel,
-//		Signal_channel: client.SignalChannel,
-//	}
-//
-//	responseHead := models.NewResponseHead(seq, cmd, code, msg, assignedReq)
-//
-//	headByte, err := json.Marshal(responseHead)
-//	if err != nil {
-//		fmt.Println("处理数据 json Marshal", err)
-//
-//		return
-//	}
-//
-//	client.SendMsg(headByte)
-//	sendResults = true
-//	fmt.Println("AllocateCloudMobile send", client.Addr, client.Group, client.Uuid, "cmd", cmd, "code", code, client.RtcChannel, client.SignalChannel)
-//
-//	return
-//
-//}
-
-func AllocateCloudMobile(userId uint32) (result bool, rtcChannel uint64, signalChannel uint64) {
-
-	//找到一个空闲的云手机
-	found, group, uuid := GetIdleCloudMobile()
-	if !found {
-		fmt.Println("AllocateCloudMobile, 找不到可用空闲云手机 for uid ", userId)
-		return
-	}
-
-	fmt.Println("AllocateCloudMobile, 找到空闲云手机 ", group, uuid)
-
-
-	//设为待分配状态
-	if !SetAllocateStatus(group, uuid, userId) {
-		fmt.Println("AllocateCloudMobile, 设置云手机状态失败 ", group, uuid)
-		return
-	}
-
-	//保存channle，等待分配结果的回复;
-	//分配rtc和signal channel给云手机
-	client := GetUserClient(group, uuid)
-	rtcChannel = client.RtcChannel
-	signalChannel = client.SignalChannel
-	clientManager.AddAllocateRecord(userId, client)
-	result = true
-
-	fmt.Println("AllocateCloudMobile success ", client.Addr, client.Group, client.Uuid, client.RtcChannel, client.SignalChannel, userId)
-
-	return
-
-}
-
-
-func RecyleCloudMobile(userId uint32) (result bool) {
-
-	//找到一个空闲的云手机
-	client := clientManager.GetAllocateRecord(userId)
-	if client == nil {
-		fmt.Println("RecyleCloudMobile, 找不到分配云手机记录 for uid ", userId)
-		return
-	}
-
-	fmt.Println("RecyleCloudMobile, 找到空闲云手机 ", client.Group, client.Uuid)
-
-
-	//设为待分配状态 
-	if !ResetAllocateStatus(client.Group, client.Uuid) {
-		fmt.Println("RecyleCloudMobile, 重置云手机分配状态失败 ", client.Group, client.Uuid)
-		return
-	}
-
-	//查找rtc和signal channel，发送RecyleReq通知云手机回收
-	var (
-		code uint32
-	    msg  string
-	)
-
-	code = common.OK
-	msg = common.GetErrorMessage(code, msg)
-	seq := helper.GetOrderIdTime()
-	cmd := "recyle"
-
-	recyleReq := &models.RecyleReq{
-		Uid:            userId,
-		Rtc_channel:    client.RtcChannel,
-		Signal_channel: client.SignalChannel,
-	}
-
-	responseHead := models.NewResponseHead(seq, cmd, code, msg, recyleReq)
-
-	headByte, err := json.Marshal(responseHead)
-	if err != nil {
-		fmt.Println("处理数据 json Marshal", err)
-
-		return
-	}
-
-	client.SendMsg(headByte)
-	
-	clientManager.DelAllocateRecord(userId)
-	
-	result = true
-
-	fmt.Println("AllocateCloudMobile success ", client.Addr, client.Group, client.Uuid, client.RtcChannel, client.SignalChannel, userId)
-
-	return
-
 }
 
 func initSnowFlake() (err error) {

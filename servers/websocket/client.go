@@ -10,10 +10,8 @@ package websocket
 import (
 	"fmt"
 	"runtime/debug"
-	"time"
 
 	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 )
 
 const (
@@ -46,9 +44,8 @@ func (l *login) GetKey() (key string) {
 }
 
 const ( //云手机状态 state取值范围
-	Good     = 0
-	NotReady = 1
-	Busy     = 2
+	Good = 0
+	Busy = 1
 )
 
 // 用户连接
@@ -66,12 +63,10 @@ type Client struct {
 	Group         uint32             //云手机机房id
 	Name          string             //云手机名字
 	Uuid          string             //云手机Uuid
-	State         uint32             //云手机状态
 	Allocated     bool               //是否被分配出去
 	AllocateTime  uint64             //分配的时间
 	AllocateUid   uint32             //分配给哪个uid
-	RtcChannel    uint64             //分配的RTC频道
-	SignalChannel uint64             //分配的信令频道
+	Channel       uint64             //分配的RTC频道
 	ch            chan *AllocateInfo //用来通知gin框架分配结果的channel
 }
 
@@ -204,55 +199,6 @@ func (c *Client) Login(appId uint32, userId string, loginTime uint64, isCloudmob
 // 用户心跳
 func (c *Client) Heartbeat(currentTime uint64) {
 	c.HeartbeatTime = currentTime
-
-	return
-}
-
-//设置云手机状态
-func (c *Client) SetState(state uint32) (result bool, userId uint32) {
-	result = true
-    if c.State != state {
-		switch c.State {
-		case Good, NotReady:
-			    //在空闲情况下，可以变为bad或者busy， 只是good-busy不应该发生 todo@：记录good -busy的发生次数
-				//在bad情况下，可以变为good或者busy， 只是bad-busy 不应该发生，todo@：记录good -busy的发生次数
-			    c.State = state
-				zap.S().Info("SetState for: ", c.Addr, c.Uuid, "orig state: ", c.State, " to state:", state)
-
-		case Busy:
-				//在busy状态下，可以直接变为为NotReady，在保护时间之外，可以重新设置为idle，为了防止用户端手机掉新等故障导致云手机任务不再继续
-				if state == Good {
-					//检查分配时间
-					currentTime := uint64(time.Now().Unix())
-					if currentTime - c.AllocateTime >= allocateProtectDuration {
-						c.State = state
-						zap.S().Info("SetState for: ", c.Addr, c.Uuid, "from busy state to good state", "allocateTime:", c.AllocateTime, "allocateUid:", c.AllocateUid)
-						userId = c.AllocateUid
-					} else {
-						zap.S().Info("SetState for: ", c.Addr, c.Uuid, " failed set from busy state to good state", "allocateTime:", c.AllocateTime, "now:", currentTime, "allocateUid:", c.AllocateUid)						
-						result = false
-					}
-				} else {
-				    //busy-bad的状态不需要保护时间，但是需要做错误处理，比如重新分配新的云手机 todo@: error recovery
-					zap.S().Info("SetState for: ", c.Addr, c.Uuid, "from busy state to bad state, allocateUid:", c.AllocateUid)
-					c.State = state
-					userId = c.AllocateUid
-				}
-		}
-	} else { //判断是否已经分配，此时state= good&idle，超过了分配保护时间，还是要充值分配状态
-			if c.State == Good && c.Allocated {
-				currentTime := uint64(time.Now().Unix())
-				if currentTime - c.AllocateTime >= allocateProtectDuration {
-					zap.S().Info("setstate for: ", c.Addr, c.Uuid, "from allocated state to idle state ", " allocatetime:", c.AllocateTime, " now:", currentTime, "allocateuid:", c.AllocateUid)
-					userId = c.AllocateUid
-				} else {
-					result = false
-					zap.S().Debug("setstate for: ", c.Addr, c.Uuid, "from allcated state to idle state failed for allocate protect,", "allocatetime:", c.AllocateTime, "now:", currentTime, "allocateuid:", c.AllocateUid)
-				}
-			}
-
-	}
-
 
 	return
 }

@@ -2,9 +2,9 @@ package database
 
 import (
 	"fmt"
+	"gowebsocket/models"
 	"strconv"
 	"time"
-	"gowebsocket/models"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -23,7 +23,7 @@ func DB() *gorm.DB {
 
 // InitDB 初始化数据库
 func InitDB() error {
-	
+
 	max_idle_conn, _ := strconv.Atoi(viper.GetString("mysql.max_idle_conn"))
 	max_open_conn, _ := strconv.Atoi(viper.GetString("mysql.max_open_conn"))
 	var err error
@@ -32,11 +32,7 @@ func InitDB() error {
 	if err != nil {
 		return fmt.Errorf("open connection failed, error: %s", err.Error())
 	}
-
-	
-
 	db.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&models.UserOnline{})
-	
 
 	return nil
 }

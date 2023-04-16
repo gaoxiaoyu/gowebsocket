@@ -93,17 +93,9 @@ func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bo
 	}
 
 	zap.S().Info("Heartbeat from: ", client.Addr, "seq: ", seq, "state:", request.State)
-	if result, allocateUid := client.SetState(request.State); result && allocateUid != 0 {
-		zap.S().Info("Heartbeat, setState success, restore allocate history for uid: ", allocateUid)
-		if !ResetAllocateStatus(client.Group, client.Uuid) {
-			fmt.Println("HeartbeatController, 重置云手机分配状态失败 ", client.Group, client.Uuid)
-		}
-		clientManager.Allocated <- allocateUid
-
-	}
 
 	data = &models.HeartBeatRsp{
-		State: client.State,
+		State: 0,
 	}
 
 	fmt.Println("webSocket_request 心跳接口", client.AppId, client.UserId)
@@ -155,7 +147,6 @@ func RegisterReqController(client *Client, seq string, message []byte) (autoRsp 
 	request := &models.RegisterReq{}
 	if err := json.Unmarshal(message, request); err != nil {
 		code = common.ParameterIllegal
-		fmt.Println("云手机注册 解析数据失败", seq, err)
 		return
 	}
 
@@ -163,40 +154,29 @@ func RegisterReqController(client *Client, seq string, message []byte) (autoRsp 
 
 	if request.State > 3 { // name的规则也可以放这里匹配
 		code = common.UnauthorizedUserId
-		fmt.Println("云手机注册 错误的上报状态", seq, request.Uuid, request.State)
 		return
 	}
 
 	if !InGroupIds(request.Group) {
 		code = common.Unauthorized
-		fmt.Println("云手机注册来自未配置的机房, seq:", seq, ",group:", request.Group)
 		return
 	}
 
 	client.Login(request.Group, request.Uuid, currentTime, true)
-	client.RtcChannel = getChannelId()
-	client.SignalChannel = client.RtcChannel
+	client.Channel = getChannelId()
 	client.IsCloudmobile = true
 
-	data = &models.RegisterRsp{
-		Rtc_channel:    uint16(client.RtcChannel),
-		Signal_channel: uint16(client.SignalChannel),
-	}
+	data = &models.RegisterRsp{}
 
-	fmt.Println("云手机注册, 分配 rtc channel ", client.RtcChannel, " signal channel ", client.SignalChannel)
-
-	// 存储数据
-	fmt.Println("云手机注册 SetUserOnlineInfo start")
-
-	userOnline := models.CloudMobileLogin(serverIp, serverPort, request.Group, request.Uuid, client.Addr, currentTime, true, request.Name, request.State)
-	err := cache.SetUserOnlineInfo(client.GetKey(), userOnline)
+	cloudmobile := models.CloudMobileLogin(serverIp, serverPort, request.Group, request.Uuid, client.Addr, currentTime, true, request.Name, request.State)
+	err := cache.SetUserOnlineInfo(client.GetKey(), cloudmobile)
 	if err != nil {
 		code = common.ServerError
 		fmt.Println("云手机注册 SetUserOnlineInfo", seq, err)
 		return
 	}
 
-	if err := database.DB().Debug().Create(userOnline).Error; err != nil {
+	if err := database.DB().Debug().Create(cloudmobile).Error; err != nil {
 		fmt.Println("write cloud mobile to db failed ", err)
 	}
 
@@ -211,63 +191,6 @@ func RegisterReqController(client *Client, seq string, message []byte) (autoRsp 
 	clientManager.Login <- login
 
 	fmt.Println("云手机注册 成功", seq, client.Addr, request.Uuid)
-
-	return
-}
-
-// {"seq":"2323","cmd":"assign","data":{"code":200,"codeMsg":"Success", "uid":uid}}
-func AssignedRspController(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{}) {
-
-	autoRsp = false
-	code = common.OK
-	currentTime := uint64(time.Now().Unix())
-
-	allocateInfo := &AllocateInfo{
-		Code:           common.OK,
-		Client:         client,
-		Uuid:           client.Uuid,
-		Group:          client.Group,
-		Rtc_channel:    client.RtcChannel,
-		Signal_channel: client.SignalChannel,
-	}
-
-	request := &models.AssignedRsp{}
-	if err := json.Unmarshal(message, request); err != nil {
-		allocateInfo.Code = common.ParameterIllegal
-		fmt.Println("云手机分配 解析数据失败", seq, err)
-		client.ch <- allocateInfo
-		return
-	}
-
-	fmt.Println("webSocket_request 分配回复", seq, "uid", request.Userid, "code", request.Code)
-	allocateInfo.Code = request.Code
-	if request.Code == common.OK {
-		client.State = Busy
-	}
-
-	client.AllocateTime = currentTime
-
-	client.ch <- allocateInfo
-
-	fmt.Println("云手机分配成功", seq, client.Addr, request.Userid, client.Uuid, client.RtcChannel, client.SignalChannel)
-
-	return
-}
-
-// {"seq":"2323","cmd":"recyle","data":{"code":200,"codeMsg":"Success", "uid":uid}}
-func RecyleRspController(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{}) {
-
-	autoRsp = false
-
-	request := &models.RecyleRsp{}
-	if err := json.Unmarshal(message, request); err != nil {
-		fmt.Println("云手机回收 解析数据失败", seq, err)
-		zap.S().Info("RecyleRspController decode error, from: ", client, "msg: ", message, "seq: ", seq)
-		return
-	}
-
-	fmt.Println("RecyleRspController 回收云手机回复", seq, "uid", request.Userid, "code", request.Code)
-	zap.S().Info("RecyleRspController Recyle cloudmobile from: ", client.Addr, "uid", request.Userid, "code", request.Code)
 
 	return
 }

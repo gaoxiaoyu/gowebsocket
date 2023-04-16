@@ -18,28 +18,28 @@ import (
 
 // 连接管理
 type ClientManager struct {
-	Clients     map[*Client]bool   // 全部的连接,还没有注册成功的时候
-	ClientsLock sync.RWMutex       // 读写锁
-	Users       map[string]*Client // 登录的用户 // appId+uuid，注册成功才加入到这里
+	Clients        map[*Client]bool   // 全部的连接,还没有注册成功的时候
+	ClientsLock    sync.RWMutex       // 读写锁
+	Users          map[string]*Client // 登录的用户 // appId+uuid，注册成功才加入到这里
 	AllocateRecord map[uint32]*Client //用户uid 和云手机分配的记录
-	UserLock    sync.RWMutex       // 读写锁
-	Register    chan *Client       // 连接连接处理
-	Login       chan *login        // 用户登录处理
-	Unregister  chan *Client       // 断开连接处理程序
-	Broadcast   chan []byte        // 广播 向全部成员发送数据
-	Allocated   chan uint32        //删除分配记录
+	UserLock       sync.RWMutex       // 读写锁
+	Register       chan *Client       // 连接连接处理
+	Login          chan *login        // 用户登录处理
+	Unregister     chan *Client       // 断开连接处理程序
+	Broadcast      chan []byte        // 广播 向全部成员发送数据
+	Allocated      chan uint32        //删除分配记录
 }
 
 func NewClientManager() (clientManager *ClientManager) {
 	clientManager = &ClientManager{
-		Clients:    make(map[*Client]bool),
-		Users:      make(map[string]*Client),
-		AllocateRecord:make(map[uint32]*Client),
-		Register:   make(chan *Client, 1000),
-		Login:      make(chan *login, 1000),
-		Unregister: make(chan *Client, 1000),
-		Broadcast:  make(chan []byte, 1000),
-		Allocated:  make(chan uint32, 1000),
+		Clients:        make(map[*Client]bool),
+		Users:          make(map[string]*Client),
+		AllocateRecord: make(map[uint32]*Client),
+		Register:       make(chan *Client, 1000),
+		Login:          make(chan *login, 1000),
+		Unregister:     make(chan *Client, 1000),
+		Broadcast:      make(chan []byte, 1000),
+		Allocated:      make(chan uint32, 1000),
 	}
 
 	return
@@ -118,7 +118,6 @@ func (manager *ClientManager) GetAllocateRecord(uid uint32) (client *Client) {
 	return
 }
 
-
 func (manager *ClientManager) AddAllocateRecord(uid uint32, client *Client) {
 	manager.UserLock.Lock()
 	defer manager.UserLock.Unlock()
@@ -129,7 +128,7 @@ func (manager *ClientManager) AddAllocateRecord(uid uint32, client *Client) {
 func (manager *ClientManager) DelAllocateRecord(uid uint32) {
 	manager.UserLock.Lock()
 	defer manager.UserLock.Unlock()
-	
+
 	delete(manager.AllocateRecord, uid)
 }
 
@@ -333,13 +332,13 @@ func GetUserList() (userList []string) {
 // 获取第一个空闲云手机返回
 func GetIdleCloudMobile() (found bool, group uint32, uuid string) {
 
-    //todo@ 记得加锁
+	//todo@ 记得加锁
 	fmt.Println("GetIdleCloudMobile called")
 
 	for _, v := range clientManager.Users {
-		fmt.Println("GetIdleCloudMobile, user ", v.IsCloudmobile, v.State, v.Allocated )
+		fmt.Println("GetIdleCloudMobile, user ", v.IsCloudmobile, v.Allocated)
 
-		if v.IsCloudmobile && v.State == Good && !v.Allocated {
+		if v.IsCloudmobile && !v.Allocated {
 			found = true
 			group = v.Group
 			uuid = v.Uuid

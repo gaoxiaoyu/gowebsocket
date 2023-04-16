@@ -17,7 +17,7 @@ var (
 	client *redis.Client
 )
 
-func ExampleNewClient() {
+func NewClient() {
 
 	client = redis.NewClient(&redis.Options{
 		Addr:         viper.GetString("redis.addr"),

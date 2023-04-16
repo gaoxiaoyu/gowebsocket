@@ -1,6 +1,6 @@
 app:
-  logFile: log/gin.log
-  processLogFile: log/process.log
+  logFile: logs/gin.log
+  processLogFile: logs/process.log
   httpPort: 8080
   webSocketPort: 8089
   rpcPort: 9001
@@ -13,3 +13,7 @@ redis:
   DB: 0
   poolSize: 30
   minIdleConns: 30
+mysql:
+  max_idle_conn: 5
+  max_open_conn: 50
+  dsn: "name:password@tcp(127.0.0.1:3306)/cloudmobile?charset=utf8mb4&parseTime=True&loc=Local"

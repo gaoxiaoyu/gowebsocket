@@ -29,7 +29,7 @@ func cleanConnection(param interface{}) (result bool) {
 		}
 	}()
 
-	fmt.Println("定时任务，清理超时连接", param)
+	//fmt.Println("定时任务，清理超时连接", param)
 
 	websocket.ClearTimeoutConnections()
 

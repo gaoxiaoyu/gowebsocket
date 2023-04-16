@@ -137,7 +137,7 @@ func initConfig() {
 }
 
 func initRedis() {
-	redislib.ExampleNewClient()
+	redislib.NewClient()
 }
 
 /*
