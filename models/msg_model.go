@@ -7,14 +7,17 @@
 
 package models
 
-import "gowebsocket/common"
+import (
+	"encoding/json"
+	"gowebsocket/common"
+)
 
 const (
 	MessageTypeText = "text"
 
-	MessageCmdMsg = "msg"
+	MessageCmdMsg   = "msg"
 	MessageCmdEnter = "enter"
-	MessageCmdExit = "exit"
+	MessageCmdExit  = "exit"
 )
 
 // 消息的定义
@@ -65,4 +68,52 @@ func GetTextMsgDataEnter(uuId, msgId, message string) string {
 func GetTextMsgDataExit(uuId, msgId, message string) string {
 
 	return getTextMsgData("exit", uuId, msgId, message)
+}
+
+type UniHead struct {
+	Seq     string `json:"seq"`     // 消息的唯一Id
+	Cmd     string `json:"cmd"`     // 请求命令字
+	Version uint32 `json:"version"` //协议版本
+}
+
+type UniClientInfo struct {
+	BusinessId  uint32 `json:"businessid"`
+	AppId       uint32 `json:"appid"`
+	ClientType  uint32 `json:"clienttype"`
+	ClientId    uint64 `jsons:"clientid"`
+	ClientToken string `json:"clienttokne"`
+}
+
+type RspCodeInfo struct {
+	Code    uint32 `json:"code"`
+	CodeMsg string `json:"codeMsg"`
+}
+
+type UniMessage struct {
+	Head       UniHead         `json:"head,omitempty"`
+	ClientInfo UniClientInfo   `json:"clientinfo,omitempty"`
+	RspCode    RspCodeInfo     `json:"rspCode,omitempty"`
+	Data       json.RawMessage `json:"data,omitempty"` // 数据 json
+}
+
+func PrepareUniMessage(seq string, cmd string, version uint32, data interface{}) *UniMessage {
+	jsondata, _ := json.Marshal(data)
+	unimsg := &UniMessage{
+		Head: UniHead{Seq: seq, Cmd: cmd, Version: version},
+		Data: jsondata,
+	}
+	return unimsg
+}
+
+func PrepareUniMessageWithCode(seq string, cmd string, version, code uint32, codemsg string, data interface{}) *UniMessage {
+	jsondata, _ := json.Marshal(data)
+	if codemsg == "" {
+		codemsg = common.GetErrorMessage(code, codemsg)
+	}
+	unimsg := &UniMessage{
+		Head:    UniHead{Seq: seq, Cmd: cmd, Version: version},
+		RspCode: RspCodeInfo{Code: code, CodeMsg: codemsg},
+		Data:    jsondata,
+	}
+	return unimsg
 }

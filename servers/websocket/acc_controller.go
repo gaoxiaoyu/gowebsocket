@@ -10,7 +10,6 @@ package websocket
 import (
 	"encoding/json"
 	"fmt"
-	"gowebsocket/common"
 	"gowebsocket/lib/cache"
 	"gowebsocket/lib/database"
 	"gowebsocket/models"
@@ -21,15 +20,15 @@ import (
 )
 
 // 用户登录
-func LoginController(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{}) {
+func LoginController(client *Client, seq string, message []byte) (autoRsp bool, data interface{}) {
 
 	autoRsp = true
-	code = common.OK
+	//code = common.OK
 	currentTime := uint64(time.Now().Unix())
 
 	request := &models.Login{}
 	if err := json.Unmarshal(message, request); err != nil {
-		code = common.ParameterIllegal
+		//code = common.ParameterIllegal
 		fmt.Println("用户登录 解析数据失败", seq, err)
 
 		return
@@ -38,14 +37,14 @@ func LoginController(client *Client, seq string, message []byte) (autoRsp bool, 
 	fmt.Println("webSocket_request 用户登录", seq, "ServiceToken", request.ServiceToken)
 
 	if request.UserId == "" || len(request.UserId) >= 20 {
-		code = common.UnauthorizedUserId
+		//code = common.UnauthorizedUserId
 		fmt.Println("用户登录 非法的用户", seq, request.UserId)
 
 		return
 	}
 
 	if !InAppIds(request.AppId) {
-		code = common.Unauthorized
+		//code = common.Unauthorized
 		fmt.Println("用户登录 不支持的平台", seq, request.AppId)
 
 		return
@@ -57,7 +56,7 @@ func LoginController(client *Client, seq string, message []byte) (autoRsp bool, 
 	userOnline := models.UserLogin(serverIp, serverPort, request.AppId, request.UserId, client.Addr, currentTime, false)
 	err := cache.SetUserOnlineInfo(client.GetKey(), userOnline)
 	if err != nil {
-		code = common.ServerError
+		//code = common.ServerError
 		fmt.Println("用户登录 SetUserOnlineInfo", seq, err)
 
 		return
@@ -78,15 +77,15 @@ func LoginController(client *Client, seq string, message []byte) (autoRsp bool, 
 }
 
 // 心跳接口
-func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{}) {
+func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bool, data interface{}) {
 
 	autoRsp = true
-	code = common.OK
+	//code = common.OK
 	currentTime := uint64(time.Now().Unix())
 
 	request := &models.HeartBeat{}
 	if err := json.Unmarshal(message, request); err != nil {
-		code = common.ParameterIllegal
+		//code = common.ParameterIllegal
 		fmt.Println("心跳接口 解析数据失败", seq, err)
 		zap.S().Info("Heartbeat decode error, from: ", client.Addr, "seq: ", seq)
 		return
@@ -102,7 +101,7 @@ func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bo
 
 	if !client.IsLogin() {
 		fmt.Println("心跳接口 用户未登录", client.AppId, client.UserId, seq)
-		code = common.NotLoggedIn
+		//code = common.NotLoggedIn
 
 		return
 	}
@@ -110,12 +109,12 @@ func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bo
 	userOnline, err := cache.GetUserOnlineInfo(client.GetKey())
 	if err != nil {
 		if err == redis.Nil {
-			code = common.NotLoggedIn
+			//code = common.NotLoggedIn
 			fmt.Println("心跳接口 用户未登录", seq, client.AppId, client.UserId)
 
 			return
 		} else {
-			code = common.ServerError
+			//code = common.ServerError
 			fmt.Println("心跳接口 GetUserOnlineInfo", seq, client.AppId, client.UserId, err)
 
 			return
@@ -126,7 +125,7 @@ func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bo
 	userOnline.Heartbeat(currentTime)
 	err = cache.SetUserOnlineInfo(client.GetKey(), userOnline)
 	if err != nil {
-		code = common.ServerError
+		//code = common.ServerError
 		fmt.Println("心跳接口 SetUserOnlineInfo", seq, client.AppId, client.UserId, err)
 
 		return
@@ -137,28 +136,28 @@ func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bo
 
 // register req
 // {"seq":"2323","cmd":"register","data":{"uuid":"","state":0,"name":"xxx","group":0}}
-func RegisterReqController(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{}) {
+func RegisterReqController(client *Client, seq string, message []byte) (autoRsp bool, data interface{}) {
 	zap.S().Info("RegisterReq from: ", client.Addr, "seq: ", seq)
 
 	autoRsp = true
-	code = common.OK
+	//code = common.OK
 	currentTime := uint64(time.Now().Unix())
 
 	request := &models.RegisterReq{}
 	if err := json.Unmarshal(message, request); err != nil {
-		code = common.ParameterIllegal
+		//code = common.ParameterIllegal
 		return
 	}
 
 	fmt.Println("webSocket_request 云手机注册登录", seq, "uuid", request.Uuid, "group ", request.Group)
 
 	if request.State > 3 { // name的规则也可以放这里匹配
-		code = common.UnauthorizedUserId
+		//code = common.UnauthorizedUserId
 		return
 	}
 
 	if !InGroupIds(request.Group) {
-		code = common.Unauthorized
+		//code = common.Unauthorized
 		return
 	}
 
@@ -171,7 +170,7 @@ func RegisterReqController(client *Client, seq string, message []byte) (autoRsp 
 	cloudmobile := models.CloudMobileLogin(serverIp, serverPort, request.Group, request.Uuid, client.Addr, currentTime, true, request.Name, request.State)
 	err := cache.SetUserOnlineInfo(client.GetKey(), cloudmobile)
 	if err != nil {
-		code = common.ServerError
+		//code = common.ServerError
 		fmt.Println("云手机注册 SetUserOnlineInfo", seq, err)
 		return
 	}

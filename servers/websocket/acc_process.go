@@ -13,10 +13,12 @@ import (
 	"gowebsocket/common"
 	"gowebsocket/models"
 	"sync"
+
 	"go.uber.org/zap"
 )
 
-type DisposeFunc func(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{})
+// type DisposeFunc func(client *Client, seq string, message []byte) (autoRsp bool, code uint32, msg string, data interface{})
+type DisposeFunc func(client *Client, seq string, message []byte) (autoRsp bool, data interface{})
 
 var (
 	handlers        = make(map[string]DisposeFunc)
@@ -46,39 +48,29 @@ func ProcessData(client *Client, message []byte) {
 
 	fmt.Println("处理数据", client.Addr, string(message))
 
-
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("处理数据 stop", r)
 		}
 	}()
 
-	request := &models.Request{}
+	request := &models.UniMessage{}
 
 	err := json.Unmarshal(message, request)
 	if err != nil {
 		fmt.Println("处理数据 json Unmarshal", err)
 		client.SendMsg([]byte("数据不合法"))
-
 		return
 	}
-	zap.S().Info("ProcessData from client: ", client.Addr, " command:", request.Cmd)
+	zap.S().Info("ProcessData from client: ", client.Addr, " command:", request.Head.Cmd)
 
-	requestData, err := json.Marshal(request.Data)
-	if err != nil {
-		fmt.Println("处理数据 json Marshal", err)
-		client.SendMsg([]byte("处理数据失败"))
-
-		return
-	}
-
-	seq := request.Seq
-	cmd := request.Cmd
+	seq := request.Head.Seq
+	cmd := request.Head.Cmd
+	version := request.Head.Version
 
 	var (
 		autoRsp bool = true
 		code    uint32
-		msg     string
 		data    interface{}
 	)
 
@@ -87,26 +79,28 @@ func ProcessData(client *Client, message []byte) {
 
 	// 采用 map 注册的方式
 	if value, ok := getHandlers(cmd); ok {
-		autoRsp, code, msg, data = value(client, seq, requestData)
+		autoRsp, data = value(client, seq, request.Data)
 	} else {
 		code = common.RoutingNotExist
 		fmt.Println("处理数据 路由不存在", client.Addr, "cmd", cmd)
 	}
 
 	if autoRsp {
+		var responseMsg *models.UniMessage
+		if code > 0 {
+			responseMsg = models.PrepareUniMessageWithCode(seq, cmd, version, code, "", data)
 
-		msg = common.GetErrorMessage(code, msg)
+		} else {
+			responseMsg = models.PrepareUniMessage(seq, cmd, version, data)
+		}
 
-		responseHead := models.NewResponseHead(seq, cmd, code, msg, data)
-
-		headByte, err := json.Marshal(responseHead)
+		response, err := json.Marshal(responseMsg)
 		if err != nil {
 			fmt.Println("处理数据 json Marshal", err)
-
 			return
 		}
 
-		client.SendMsg(headByte)
+		client.SendMsg(response)
 
 		fmt.Println("acc_response send", client.Addr, client.AppId, client.UserId, "cmd", cmd, "code", code, "data", data)
 	}
