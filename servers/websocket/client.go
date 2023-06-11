@@ -50,6 +50,7 @@ type Client struct {
 	Addr          string               // 客户端地址
 	Socket        *websocket.Conn      // 用户连接
 	Send          chan []byte          // 待发送的数据
+	Done          chan bool            //表示连接已经完成
 	AppId         string               // 登录的平台Id app/web/ios
 	UserId        string               // 用户Id，用户登录以后才有
 	FirstTime     uint64               // 首次连接事件
@@ -91,14 +92,15 @@ func (c *Client) read() {
 
 	defer func() {
 		fmt.Println("读取客户端数据 关闭send", c)
-		close(c.Send)
+		c.Socket.Close()
+		c.close()
 	}()
 
 	for {
 		_, message, err := c.Socket.ReadMessage()
 		if err != nil {
 			fmt.Println("读取客户端数据 错误", c.Addr, err)
-
+			clientManager.Unregister <- c
 			return
 		}
 
@@ -114,12 +116,10 @@ func (c *Client) write() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("write stop", string(debug.Stack()), r)
-
 		}
 	}()
 
 	defer func() {
-		clientManager.Unregister <- c
 		c.Socket.Close()
 		fmt.Println("Client发送数据 defer", c)
 	}()
@@ -130,12 +130,14 @@ func (c *Client) write() {
 			if !ok {
 				// 发送数据错误 关闭连接
 				fmt.Println("Client发送数据 关闭连接", c.Addr, "ok", ok)
-
 				return
 			}
 
 			zap.S().Debugw("client <-- server", " connID:", c.ConnId, " addr:", c.Addr, "message:", string(message))
 			c.Socket.WriteMessage(websocket.TextMessage, message)
+		case <-c.Done:
+			zap.S().Debugw("client::write, done", "connID", c.ConnId, "addr", c.Addr)
+			return
 		}
 	}
 }

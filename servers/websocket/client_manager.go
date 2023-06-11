@@ -11,11 +11,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"gowebsocket/helper"
-	"gowebsocket/lib/cache"
+	"gowebsocket/lib/database"
 	"gowebsocket/lib/log"
 	"gowebsocket/models"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // 连接管理
@@ -144,10 +146,14 @@ func (manager *ClientManager) EventUnregister(client *Client) {
 	manager.DelUsers(userKey)
 
 	// 清除redis登录数据
-	userOnline, err := cache.GetUserOnlineInfo(client.GetKey())
-	if err == nil {
-		userOnline.LogOut()
-		cache.SetUserOnlineInfo(client.GetKey(), userOnline)
+	// userOnline, err := cache.GetUserOnlineInfo(client.GetKey())
+	// if err == nil {
+	// 	userOnline.LogOut()
+	// 	cache.SetUserOnlineInfo(client.GetKey(), userOnline)
+	// }
+
+	if err := database.DB().Debug().Where("app_id = ? anduser_id = ?", client.AppId, client.UserId).Delete(&models.UserOnlineInDb{}).Error; err != nil {
+		zap.S().Errorw("EventUnregister, delte user in db err", "err", err, "appid", client.AppId, "userid", client.UserId)
 	}
 
 	// 关闭 chan
