@@ -8,10 +8,7 @@
 package models
 
 import (
-	"fmt"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 const (
@@ -20,89 +17,34 @@ const (
 
 // 用户在线状态
 type UserOnline struct {
-	Id            uint64 `json:"id" gorm:"primaryKey"`
-	AccIp         string `json:"accIp"`         // acc Ip
-	AccPort       string `json:"accPort"`       // acc 端口
-	AppId         uint32 `json:"appId"`         // appId
+	AppId         string `json:"appId"`         // appId
 	UserId        string `json:"userId"`        // 用户Id
+	ClientType    uint32 `json:"clientType"`    // clientType
+	ClientId      string `json:"clientId"`      // 用户Id
+	Name          string `json:"name"`          // name
+	Platform      string `json:"platform"`      // 平台
+	Ua            string `json:"ua"`            // ua
 	ClientIp      string `json:"clientIp"`      // 客户端Ip
 	ClientPort    string `json:"clientPort"`    // 客户端端口
 	LoginTime     uint64 `json:"loginTime"`     // 用户上次登录时间
 	HeartbeatTime uint64 `json:"heartbeatTime"` // 用户上次心跳时间
 	LogOutTime    uint64 `json:"logOutTime"`    // 用户退出登录的时间
-	Qua           string `json:"qua"`           // qua
-	DeviceInfo    string `json:"deviceInfo"`    // 设备信息
-	IsLogoff      bool   `json:"isLogoff"`      // 是否下线
-	IsCloudMobile bool   `json:"isCloudMobile"` //是否云手机\
-	Group         uint32 `json:"group"`         //云手机机房id
-	Uuid          string `json:"uuid"`          //云手机uuid
-	Name          string `json:"name"`          //云手机name
-	State         uint32 `json:"state"`         //云手机可用状态
-	Status        uint32 `json:"status"`        //管理后台设置的云手机状态
-	RtcChannel    uint64 `json:"rtcchannel"`    //rtc channel
-	SignalChannel uint64 `json:"signalchannel"` //signal channel
-	gorm.Model
-}
-
-func (UserOnline) TableName() string {
-	return "UserOnlines"
+	AccIp         string `json:"accIp"`         // acc Ip
+	AccPort       string `json:"accPort"`       // acc 端口
 }
 
 /**********************  数据处理  *********************************/
 
-// 用户登录
-func UserLogin(accIp, accPort string, appId uint32, userId string, addr string, loginTime uint64, isCloudMobile bool) (userOnline *UserOnline) {
-
-	userOnline = &UserOnline{
-		AccIp:         accIp,
-		AccPort:       accPort,
-		AppId:         appId,
-		UserId:        userId,
-		ClientIp:      addr,
-		LoginTime:     loginTime,
-		HeartbeatTime: loginTime,
-		IsLogoff:      false,
-		IsCloudMobile: isCloudMobile,
-	}
-
-	return
-}
-
-func CloudMobileLogin(accIp, accPort string, group uint32, uuid string, addr string, loginTime uint64, isCloudMobile bool, name string, state uint32) (userOnline *UserOnline) {
-
-	userOnline = &UserOnline{
-		AccIp:         accIp,
-		AccPort:       accPort,
-		Group:         group,
-		Uuid:          uuid,
-		ClientIp:      addr,
-		LoginTime:     loginTime,
-		HeartbeatTime: loginTime,
-		IsLogoff:      false,
-		IsCloudMobile: isCloudMobile,
-		Name:          name,
-		State:         state,
-	}
-
-	return
-}
-
 // 用户心跳
 func (u *UserOnline) Heartbeat(currentTime uint64) {
-
 	u.HeartbeatTime = currentTime
-	u.IsLogoff = false
-
 	return
 }
 
 // 用户退出登录
 func (u *UserOnline) LogOut() {
-
 	currentTime := uint64(time.Now().Unix())
 	u.LogOutTime = currentTime
-	u.IsLogoff = true
-
 	return
 }
 
@@ -110,33 +52,8 @@ func (u *UserOnline) LogOut() {
 
 // 用户是否在线
 func (u *UserOnline) IsOnline() (online bool) {
-	if u.IsLogoff {
-		if u.IsCloudMobile {
-			fmt.Println("用户是否在线 云手机已经下线", u.Group, u.Uuid)
-		} else {
-			fmt.Println("用户是否在线 用户已经下线", u.AppId, u.UserId)
-		}
-		return
-	}
 
-	currentTime := uint64(time.Now().Unix())
-
-	if u.HeartbeatTime < (currentTime - heartbeatTimeout) {
-		if u.IsCloudMobile {
-			fmt.Println("用户是否在线 云手机心跳超时", u.Group, u.Uuid, u.HeartbeatTime)
-		} else {
-			fmt.Println("用户是否在线 用户心跳超时", u.AppId, u.UserId, u.HeartbeatTime)
-		}
-
-		return
-	}
-
-	/*if u.IsLogoff {
-		fmt.Println("用户是否在线 用户已经下线", u.AppId, u.UserId)
-		return
-	}*/
-
-	return true
+	return u.LogOutTime != 0
 }
 
 // 用户是否在本台机器上

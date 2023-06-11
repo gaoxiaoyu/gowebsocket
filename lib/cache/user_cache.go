@@ -60,7 +60,7 @@ func GetUserOnlineInfo(userKey string) (userOnline *models.UserOnline, err error
 		return
 	}
 
-	fmt.Println("获取用户在线数据", userKey, "time", userOnline.LoginTime, userOnline.HeartbeatTime, "AccIp", userOnline.AccIp, userOnline.IsLogoff)
+	fmt.Println("获取用户在线数据", userKey, "time", userOnline.LoginTime, userOnline.HeartbeatTime, "AccIp", userOnline.AccIp)
 
 	return
 }
@@ -90,22 +90,12 @@ func SetUserOnlineInfo(userKey string, userOnline *models.UserOnline) (err error
 	data["accIp"] = userOnline.AccIp
 	data["accPort"] = userOnline.AccPort
 	data["appId"] = userOnline.AppId
-	data["userId"] = userOnline.UserId
 	data["clientIp"] = userOnline.ClientIp
 	data["clientPort"] = userOnline.ClientPort
 	data["loginTime"] = userOnline.LoginTime
 	data["heartbeatTime"] = userOnline.HeartbeatTime
 	data["logOutTime"] = userOnline.LogOutTime
-	data["qua"] = userOnline.Qua
-	data["deviceInfo"] = userOnline.DeviceInfo
-	data["isLogoff"] = userOnline.IsLogoff
-	data["isCloudMobile"] = userOnline.IsCloudMobile
-	data["group"] = userOnline.Group
-	data["uuid"] = userOnline.Uuid
 	data["name"] = userOnline.Name
-	data["state"] = userOnline.State
-	data["rtcchannel"] = userOnline.RtcChannel
-	data["signalchannel"] = userOnline.SignalChannel
 
 	err = redisClient.HMSet(cloudmobileKey, data).Err()
 	if err != nil {

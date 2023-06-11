@@ -101,7 +101,6 @@ func initLogger() {
 	defer logger.Sync()
 
 	zap.ReplaceGlobals(logger)
-	zap.L().Info("replaced zap's global loggers")
 }
 
 func initZapLogerWithRotate() {

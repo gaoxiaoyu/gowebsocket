@@ -16,4 +16,6 @@ redis:
 mysql:
   max_idle_conn: 5
   max_open_conn: 50
-  dsn: "name:password@tcp(127.0.0.1:3306)/cloudmobile?charset=utf8mb4&parseTime=True&loc=Local"
+  dsn: "testuser1:testuser1@@tcp(127.0.0.1:3306)/testdb?charset=utf8mb4&parseTime=True&loc=Local"
+  #"gaoxiaoyu:Ericgao1@@tcp(127.0.0.1:3306)/cloudmobile?charset=utf8mb4&parseTime=True&loc=Local",
+

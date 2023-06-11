@@ -25,7 +25,7 @@ service AccServer {
 
 // 查询用户是否在线
 message QueryUsersOnlineReq {
-    uint32 appId = 1; // AppID
+    string appId = 1; // AppID
     string userId = 2; // 用户ID
 }
 
@@ -38,7 +38,7 @@ message QueryUsersOnlineRsp {
 // 发送消息
 message SendMsgReq {
     string seq = 1; // 序列号
-    uint32 appId = 2; // 用户ID
+    string appId = 2; // 用户ID
     string userId = 3; // 用户ID
     string cms = 4; // cms 动作: msg/enter/exit
     string type = 5; // type 消息类型，默认是 text
@@ -55,7 +55,7 @@ message SendMsgRsp {
 // 发送消息
 message SendMsgAllReq {
     string seq = 1; // 序列号
-    uint32 appId = 2; // 用户ID
+    string appId = 2; // 用户ID
     string userId = 3; // 用户ID
     string cms = 4; // cms 动作: msg/enter/exit
     string type = 5; // type 消息类型，默认是 text

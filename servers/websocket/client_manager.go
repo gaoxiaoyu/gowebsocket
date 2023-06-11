@@ -8,9 +8,11 @@
 package websocket
 
 import (
+	"encoding/json"
 	"fmt"
 	"gowebsocket/helper"
 	"gowebsocket/lib/cache"
+	"gowebsocket/lib/log"
 	"gowebsocket/models"
 	"sync"
 	"time"
@@ -18,43 +20,36 @@ import (
 
 // 连接管理
 type ClientManager struct {
-	Clients        map[*Client]bool   // 全部的连接,还没有注册成功的时候
-	ClientsLock    sync.RWMutex       // 读写锁
-	Users          map[string]*Client // 登录的用户 // appId+uuid，注册成功才加入到这里
-	AllocateRecord map[uint32]*Client //用户uid 和云手机分配的记录
-	UserLock       sync.RWMutex       // 读写锁
-	Register       chan *Client       // 连接连接处理
-	Login          chan *login        // 用户登录处理
-	Unregister     chan *Client       // 断开连接处理程序
-	Broadcast      chan []byte        // 广播 向全部成员发送数据
-	Allocated      chan uint32        //删除分配记录
+	Clients     map[*Client]bool            // 全部的连接,还没有注册成功的时候
+	ClientsLock sync.RWMutex                // 读写锁
+	Users       map[string]*Client          // 登录的用户 // appId+uuid，注册成功才加入到这里
+	UserLock    sync.RWMutex                // 读写锁
+	Register    chan *Client                // 连接连接处理
+	Login       chan *login                 // 用户登录处理
+	Unregister  chan *Client                // 断开连接处理程序
+	Broadcast   chan []byte                 // 广播 向全部成员发送数据
+	Unicast     chan *models.UnicastMessage // 单播 向指定成员发送数据
+	Allocated   chan uint32                 //删除分配记录
 }
 
 func NewClientManager() (clientManager *ClientManager) {
 	clientManager = &ClientManager{
-		Clients:        make(map[*Client]bool),
-		Users:          make(map[string]*Client),
-		AllocateRecord: make(map[uint32]*Client),
-		Register:       make(chan *Client, 1000),
-		Login:          make(chan *login, 1000),
-		Unregister:     make(chan *Client, 1000),
-		Broadcast:      make(chan []byte, 1000),
-		Allocated:      make(chan uint32, 1000),
+		Clients:    make(map[*Client]bool),
+		Users:      make(map[string]*Client),
+		Register:   make(chan *Client, 1000),
+		Login:      make(chan *login, 1000),
+		Unregister: make(chan *Client, 1000),
+		Broadcast:  make(chan []byte, 1000),
+		Unicast:    make(chan *models.UnicastMessage, 1000),
+		Allocated:  make(chan uint32, 1000),
 	}
 
 	return
 }
 
 // 获取用户key
-func GetUserKey(appId uint32, userId string) (key string) {
-	key = fmt.Sprintf("%d_%s", appId, userId)
-
-	return
-}
-
-// 获取云手机key
-func GetCloudMobileKey(group uint32, uuid string) (key string) {
-	key = fmt.Sprintf("%d_%s", group, uuid)
+func GetUserKey(appId, userId string) (key string) {
+	key = fmt.Sprintf("%s_%s", appId, userId)
 
 	return
 }
@@ -77,20 +72,6 @@ func (manager *ClientManager) DelClients(client *Client) {
 	delete(manager.Clients, client)
 }
 
-// 获取用户的连接
-func (manager *ClientManager) GetUserClient(group uint32, uuid string) (client *Client) {
-
-	manager.UserLock.RLock()
-	defer manager.UserLock.RUnlock()
-
-	userKey := GetCloudMobileKey(group, uuid)
-	if value, ok := manager.Users[userKey]; ok {
-		client = value
-	}
-
-	return
-}
-
 // 添加用户
 func (manager *ClientManager) AddUsers(key string, client *Client) {
 	manager.UserLock.Lock()
@@ -107,29 +88,12 @@ func (manager *ClientManager) DelUsers(key string) {
 	delete(manager.Users, key)
 }
 
-func (manager *ClientManager) GetAllocateRecord(uid uint32) (client *Client) {
-	manager.UserLock.Lock()
-	defer manager.UserLock.Unlock()
-
-	if value, ok := manager.AllocateRecord[uid]; ok {
-		client = value
-	}
-
+func (manager *ClientManager) GetUserClient(appId, userId string) (client *Client) {
+	manager.UserLock.RLock()
+	defer manager.UserLock.RUnlock()
+	key := GetUserKey(appId, userId)
+	client = manager.Users[key]
 	return
-}
-
-func (manager *ClientManager) AddAllocateRecord(uid uint32, client *Client) {
-	manager.UserLock.Lock()
-	defer manager.UserLock.Unlock()
-
-	manager.AllocateRecord[uid] = client
-}
-
-func (manager *ClientManager) DelAllocateRecord(uid uint32) {
-	manager.UserLock.Lock()
-	defer manager.UserLock.Unlock()
-
-	delete(manager.AllocateRecord, uid)
 }
 
 // 向全部成员(除了自己)发送数据
@@ -162,13 +126,9 @@ func (manager *ClientManager) EventLogin(login *login) {
 		manager.AddUsers(userKey, login.Client)
 	}
 
-	if login.IsCloudmobile {
-		fmt.Println("EventLogin 云手机登录", client.Addr, login.Group, login.Uuid)
-	} else {
-		fmt.Println("EventLogin 普通用户登录", client.Addr, login.AppId, login.UserId)
-		orderId := helper.GetOrderIdTime()
-		SendUserMessageAll(login.AppId, login.UserId, orderId, models.MessageCmdEnter, "哈喽~")
-	}
+	fmt.Println("EventLogin 普通用户登录", client.Addr, login.AppId, login.UserId)
+	orderId := helper.GetOrderIdTime()
+	SendUserMessageAll(login.AppId, login.UserId, orderId, models.MessageCmdEnter, "哈喽~")
 
 }
 
@@ -178,11 +138,9 @@ func (manager *ClientManager) EventUnregister(client *Client) {
 
 	// 删除用户连接
 	var userKey string
-	if client.IsCloudmobile {
-		userKey = GetUserKey(client.Group, client.Uuid)
-	} else {
-		userKey = GetUserKey(client.AppId, client.UserId)
-	}
+
+	userKey = GetUserKey(client.AppId, client.UserId)
+
 	manager.DelUsers(userKey)
 
 	// 清除redis登录数据
@@ -194,9 +152,7 @@ func (manager *ClientManager) EventUnregister(client *Client) {
 
 	// 关闭 chan
 	// close(client.Send)
-	if client.IsCloudmobile {
-		fmt.Println("EventUnregister 云手机断开连接", client.Addr, client.Group, client.Uuid)
-	} else {
+	{
 		fmt.Println("EventUnregister 用户断开连接", client.Addr, client.AppId, client.UserId)
 		if client.UserId != "" {
 			orderId := helper.GetOrderIdTime()
@@ -231,9 +187,12 @@ func (manager *ClientManager) start() {
 					close(conn.Send)
 				}
 			}
-		case userId := <-manager.Allocated:
-			manager.DelAllocateRecord(userId)
-
+		case unicastmsg := <-manager.Unicast:
+			if client := manager.GetUserClient(unicastmsg.AppId, unicastmsg.UserId); client != nil {
+				client.SendMsg(unicastmsg.Data)
+			} else {
+				log.Errorw("ClientManager::Unicast, Unicast to user failed", "appid", unicastmsg.AppId, "uid", unicastmsg.UserId, "user exist?", false)
+			}
 		}
 	}
 }
@@ -269,32 +228,8 @@ func GetManagerInfo(isDebug string) (managerInfo map[string]interface{}) {
 }
 
 // 获取用户所在的连接
-func GetUserClient(appId uint32, userId string) (client *Client) {
+func GetUserClient(appId, userId string) (client *Client) {
 	client = clientManager.GetUserClient(appId, userId)
-
-	return
-}
-
-// 设置云手机被分配状态
-func SetAllocateStatus(group uint32, uuid string, userId uint32) (result bool) {
-	client := clientManager.GetUserClient(group, uuid)
-	if client != nil {
-		client.Allocated = true
-		client.AllocateTime = uint64(time.Now().Unix())
-		client.AllocateUid = userId
-		result = true
-	}
-
-	return
-}
-func ResetAllocateStatus(group uint32, uuid string) (result bool) {
-	client := clientManager.GetUserClient(group, uuid)
-	if client != nil {
-		client.Allocated = false
-		client.AllocateTime = 0
-		client.AllocateUid = 0
-		result = true
-	}
 
 	return
 }
@@ -305,11 +240,8 @@ func ClearTimeoutConnections() {
 
 	for client := range clientManager.Clients {
 		if client.IsHeartbeatTimeout(currentTime) {
-			if client.IsCloudmobile {
-				fmt.Println("云手机心跳时间超时 关闭连接", client.Addr, client.Uuid, client.LoginTime, client.HeartbeatTime)
-			} else {
-				fmt.Println("用户心跳时间超时 关闭连接", client.Addr, client.UserId, client.LoginTime, client.HeartbeatTime)
-			}
+
+			fmt.Println("用户心跳时间超时 关闭连接", client.Addr, client.UserId, client.LoginTime, client.HeartbeatTime)
 
 			client.Socket.Close()
 		}
@@ -329,29 +261,29 @@ func GetUserList() (userList []string) {
 	return
 }
 
-// 获取第一个空闲云手机返回
-func GetIdleCloudMobile() (found bool, group uint32, uuid string) {
-
-	//todo@ 记得加锁
-	fmt.Println("GetIdleCloudMobile called")
-
-	for _, v := range clientManager.Users {
-		fmt.Println("GetIdleCloudMobile, user ", v.IsCloudmobile, v.Allocated)
-
-		if v.IsCloudmobile && !v.Allocated {
-			found = true
-			group = v.Group
-			uuid = v.Uuid
-		}
-	}
-
-	return
-}
-
 // 全员广播
-func AllSendMessages(appId uint32, userId string, data string) {
+func AllSendMessages(appId string, userId string, data string) {
 	fmt.Println("全员广播", appId, userId, data)
 
 	ignore := clientManager.GetUserClient(appId, userId)
 	clientManager.sendAll([]byte(data), ignore)
+}
+
+func UnicastToClient(appid, clientid string, cmdDesc string, msg interface{}) {
+	log.Debugw("UnicastToClient", "clientid", clientid, "appid", appid, "cmd", cmdDesc, "msg", msg)
+	uniMsg := models.PrepareUniMessage(helper.GetOrderIdTime(), cmdDesc, models.UniMsgVersion1Define, msg)
+
+	jsonmsg, err := json.Marshal(uniMsg)
+	if err != nil {
+		log.Debugw("UnicastToClient, unimsg json marshal error", "err", err, "clientid", clientid, "appid", appid, "cmd", cmdDesc, "msg", msg)
+		return
+	}
+
+	unitcast := models.UnicastMessage{
+		AppId:  appid,
+		UserId: clientid,
+		Data:   jsonmsg,
+	}
+
+	clientManager.Unicast <- &unitcast
 }

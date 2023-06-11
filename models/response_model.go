@@ -30,12 +30,25 @@ type PushMsg struct {
 	Msg  string `json:"msg"`
 }
 
-type RegisterRsp struct {
+type LoginRsp struct {
+	RspCodeInfo
+	UserId string `json:"userId"`
 }
 
 // {"seq":"2324","cmd":"heartbeat","data":{"state"=0}}
 type HeartBeatRsp struct {
-	State uint32 `json:"state,omitempty"` //0=good&idle 1=bad 2=busy
+	RspCodeInfo
+	State uint32 `json:"state"` //0=good&idle 1=bad 2=busy
+}
+
+type SendToUserMsgRsp struct {
+	AppId  string `json:"appId"`
+	UserId string `json:"userId"`
+	RspCodeInfo
+}
+
+type UserMsgRsp struct {
+	RspCodeInfo
 }
 
 // 设置返回消息

@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"gowebsocket/common"
+	"gowebsocket/helper"
 	"gowebsocket/models"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -50,7 +52,8 @@ func ProcessData(client *Client, message []byte) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("处理数据 stop", r)
+			zap.S().Errorw("ProcessData, panic", "recover", r)
+			helper.PrintStack(r)
 		}
 	}()
 
@@ -62,7 +65,20 @@ func ProcessData(client *Client, message []byte) {
 		client.SendMsg([]byte("数据不合法"))
 		return
 	}
-	zap.S().Info("ProcessData from client: ", client.Addr, " command:", request.Head.Cmd)
+	zap.S().Infow("ProcessData from client", "addr", client.Addr, "command", request.Head.Cmd)
+
+	if client.VerifyTime == 0 {
+		if request.ClientInfo == nil || request.ClientInfo.AppId == "" {
+			client.SendMsg([]byte("鉴权信息不全"))
+			return
+		}
+		if err := VerifyClient(client, request.ClientInfo); err != nil {
+			client.SendMsg([]byte("鉴权失败"))
+			return
+		}
+		client.VerifyTime = uint64(time.Now().Unix())
+		client.UniClientInfo = *request.ClientInfo
+	}
 
 	seq := request.Head.Seq
 	cmd := request.Head.Cmd
@@ -106,4 +122,9 @@ func ProcessData(client *Client, message []byte) {
 	}
 
 	return
+}
+
+func VerifyClient(client *Client, clientinfo *models.UniClientInfo) error {
+	//todo@: 未来集成jwt，验证长连接接入信息,并且验证appid
+	return nil
 }

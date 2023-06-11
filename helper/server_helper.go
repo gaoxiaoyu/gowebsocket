@@ -10,6 +10,9 @@ package helper
 import (
 	"net"
 	"os"
+	"runtime"
+
+	"go.uber.org/zap"
 )
 
 // 获取服务器Ip
@@ -22,9 +25,10 @@ func GetServerIp() (ip string) {
 
 	for _, address := range addrs {
 		// 检查ip地址判断是否回环地址
-		if ipNet, ok := address.(*net.IPNet); ok && !ipNet.IP.IsLoopback() && IsPublicIP(ipNet.IP) {
+		if ipNet, ok := address.(*net.IPNet); ok && (ipNet.IP.IsGlobalUnicast() || IsPublicIP(ipNet.IP)) {
 			if ipNet.IP.To4() != nil {
 				ip = ipNet.IP.String()
+				return
 			}
 		}
 	}
@@ -71,4 +75,10 @@ func PathGuarantee(path string) error {
 	}
 
 	return nil
+}
+
+func PrintStack(r any) {
+	var buf [4096]byte
+	n := runtime.Stack(buf[:], false)
+	zap.S().Errorw("panic happen", "reover", r, "stack", string(buf[:n])) //"stack", string(debug.Stack()),
 }

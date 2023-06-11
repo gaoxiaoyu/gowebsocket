@@ -10,57 +10,91 @@ package websocket
 import (
 	"encoding/json"
 	"fmt"
-	"gowebsocket/lib/cache"
+	"gowebsocket/common"
 	"gowebsocket/lib/database"
 	"gowebsocket/models"
+	"net"
 	"time"
 
-	"github.com/go-redis/redis"
 	"go.uber.org/zap"
+	"gorm.io/gorm/clause"
 )
 
 // 用户登录
 func LoginController(client *Client, seq string, message []byte) (autoRsp bool, data interface{}) {
 
 	autoRsp = true
-	//code = common.OK
+	resp := &models.LoginRsp{}
+	defer func() {
+		if autoRsp {
+			if resp.Code > 0 && resp.CodeMsg == "" {
+				resp.CodeMsg = common.GetErrorMessage(resp.Code, resp.CodeMsg)
+			}
+			data = resp
+		}
+	}()
+
 	currentTime := uint64(time.Now().Unix())
 
-	request := &models.Login{}
+	request := &models.LoginReq{}
 	if err := json.Unmarshal(message, request); err != nil {
-		//code = common.ParameterIllegal
-		fmt.Println("用户登录 解析数据失败", seq, err)
-
+		resp.Code = common.ParameterIllegal
+		zap.S().Errorw("LoginController, decode LoginReq err", "err", err, "ClientId", client.UniClientInfo.ClientId)
 		return
 	}
 
-	fmt.Println("webSocket_request 用户登录", seq, "ServiceToken", request.ServiceToken)
+	zap.S().Debugw("LoginController, LoginReq received", "userid", request.UserId, "appid", request.AppId, "from", client.Addr)
 
-	if request.UserId == "" || len(request.UserId) >= 20 {
-		//code = common.UnauthorizedUserId
-		fmt.Println("用户登录 非法的用户", seq, request.UserId)
-
+	if request.UserId == "" {
+		resp.Code = common.UnauthorizedUserId
+		zap.S().Errorw("LoginController, invailid UserId", "ClientId", client.UniClientInfo.ClientId)
 		return
 	}
 
 	if !InAppIds(request.AppId) {
-		//code = common.Unauthorized
+		resp.Code = common.Unauthorized
 		fmt.Println("用户登录 不支持的平台", seq, request.AppId)
-
 		return
 	}
 
-	client.Login(request.AppId, request.UserId, currentTime, false)
+	client.Login(request.AppId, request.UserId, currentTime)
+	clientIp, clientPort, err := net.SplitHostPort(client.Addr)
+	if err != nil {
+		zap.S().Errorw("LoginController, wrong client addr ", "client addr", client.Addr)
+		resp.Code = common.ParameterIllegal
+		return
+	}
+
+	userOnline := models.UserOnlineInDb{
+		AppId:         request.AppId,
+		UserId:        request.UserId,
+		ClientType:    client.UniClientInfo.ClientType,
+		ClientId:      client.UniClientInfo.ClientId,
+		Name:          request.Name,
+		Platform:      client.UniClientInfo.Platform,
+		Ua:            client.UniClientInfo.Ua,
+		ClientIp:      clientIp,
+		ClientPort:    clientPort,
+		LoginTime:     currentTime,
+		HeartbeatTime: currentTime,
+		LogOutTime:    0,
+		AccIp:         serverIp,
+		AccPort:       serverPort,
+	}
+	if err := database.DB().Debug().Clauses(clause.OnConflict{UpdateAll: true}).Create(&userOnline).Error; err != nil {
+		resp.Code = common.ModelAddError
+		zap.S().Errorw("LoginController, add user in db err", "err", err, "ClientId", client.UniClientInfo.ClientId)
+		return
+	}
 
 	// 存储数据
-	userOnline := models.UserLogin(serverIp, serverPort, request.AppId, request.UserId, client.Addr, currentTime, false)
-	err := cache.SetUserOnlineInfo(client.GetKey(), userOnline)
-	if err != nil {
-		//code = common.ServerError
-		fmt.Println("用户登录 SetUserOnlineInfo", seq, err)
-
-		return
-	}
+	// userOnline := models.UserLogin(serverIp, serverPort, request.AppId, request.UserId, client.Addr, currentTime, false)
+	// err := cache.SetUserOnlineInfo(client.GetKey(), userOnline)
+	// if err != nil {
+	// 	resp.Code = common.ServerError
+	// 	fmt.Println("用户登录 SetUserOnlineInfo", seq, err)
+	// 	return
+	// }
 
 	// 用户登录
 	login := &login{
@@ -69,127 +103,131 @@ func LoginController(client *Client, seq string, message []byte) (autoRsp bool, 
 		Client: client,
 	}
 	clientManager.Login <- login
-	//todo@：这里准备写入mysql
-
-	fmt.Println("用户登录 成功", seq, client.Addr, request.UserId)
+	zap.S().Infow("LoginController, user login sucess", "userid", request.UserId, "appid", request.AppId, "addr", client.Addr)
+	resp.Code = common.OK
 
 	return
 }
 
 // 心跳接口
 func HeartbeatController(client *Client, seq string, message []byte) (autoRsp bool, data interface{}) {
-
 	autoRsp = true
-	//code = common.OK
+	resp := &models.HeartBeatRsp{
+		RspCodeInfo: models.RspCodeInfo{
+			Code: common.OK,
+		},
+	}
+	defer func() {
+		if autoRsp {
+			if resp.Code > 0 && resp.CodeMsg == "" {
+				resp.CodeMsg = common.GetErrorMessage(resp.Code, resp.CodeMsg)
+			}
+			data = resp
+		}
+	}()
+
 	currentTime := uint64(time.Now().Unix())
 
-	request := &models.HeartBeat{}
+	request := &models.HeartBeatReq{}
 	if err := json.Unmarshal(message, request); err != nil {
-		//code = common.ParameterIllegal
+		resp.Code = common.ParameterIllegal
 		fmt.Println("心跳接口 解析数据失败", seq, err)
-		zap.S().Info("Heartbeat decode error, from: ", client.Addr, "seq: ", seq)
+		zap.S().Info("HeartbeatController,  decode HeartBeatReq error, from: ", client.Addr, "seq: ", seq)
 		return
 	}
 
-	zap.S().Info("Heartbeat from: ", client.Addr, "seq: ", seq, "state:", request.State)
+	zap.S().Info("HeartbeatController, receive heartbeat", "addr", client.Addr, "ClientId", client.UniClientInfo.ClientId, "state:", request.State)
 
-	data = &models.HeartBeatRsp{
-		State: 0,
-	}
+	resp.State = request.State
 
 	fmt.Println("webSocket_request 心跳接口", client.AppId, client.UserId)
 
 	if !client.IsLogin() {
 		fmt.Println("心跳接口 用户未登录", client.AppId, client.UserId, seq)
-		//code = common.NotLoggedIn
-
+		resp.Code = common.NotLoggedIn
 		return
 	}
 
-	userOnline, err := cache.GetUserOnlineInfo(client.GetKey())
-	if err != nil {
-		if err == redis.Nil {
-			//code = common.NotLoggedIn
-			fmt.Println("心跳接口 用户未登录", seq, client.AppId, client.UserId)
+	// userOnline, err := cache.GetUserOnlineInfo(client.GetKey())
+	// if err != nil {
+	// 	if err == redis.Nil {
+	// 		//code = common.NotLoggedIn
+	// 		fmt.Println("心跳接口 用户未登录", seq, client.AppId, client.UserId)
 
-			return
-		} else {
-			//code = common.ServerError
-			fmt.Println("心跳接口 GetUserOnlineInfo", seq, client.AppId, client.UserId, err)
+	// 		return
+	// 	} else {
+	// 		//code = common.ServerError
+	// 		fmt.Println("心跳接口 GetUserOnlineInfo", seq, client.AppId, client.UserId, err)
 
-			return
-		}
-	}
+	// 		return
+	// 	}
+	// }
 
 	client.Heartbeat(currentTime)
-	userOnline.Heartbeat(currentTime)
-	err = cache.SetUserOnlineInfo(client.GetKey(), userOnline)
-	if err != nil {
-		//code = common.ServerError
-		fmt.Println("心跳接口 SetUserOnlineInfo", seq, client.AppId, client.UserId, err)
+	// userOnline.Heartbeat(currentTime)
+	// err = cache.SetUserOnlineInfo(client.GetKey(), userOnline)
+	// if err != nil {
+	// 	//code = common.ServerError
+	// 	fmt.Println("心跳接口 SetUserOnlineInfo", seq, client.AppId, client.UserId, err)
 
+	// 	return
+	// }
+
+	if err := database.DB().Debug().Model(&models.UserOnlineInDb{}).Where("user_id = ?", client.UserId).Updates(models.UserOnlineInDb{HeartbeatTime: currentTime}).Error; err != nil {
+		resp.Code = common.ModelAddError
+		zap.S().Errorw("LoginController, update user heartbeat time in db err", "err", err, "userId", client.UserId)
 		return
 	}
 
 	return
 }
 
-// register req
-// {"seq":"2323","cmd":"register","data":{"uuid":"","state":0,"name":"xxx","group":0}}
-func RegisterReqController(client *Client, seq string, message []byte) (autoRsp bool, data interface{}) {
-	zap.S().Info("RegisterReq from: ", client.Addr, "seq: ", seq)
-
+func SendToUserMsgReqController(client *Client, seq string, message []byte) (autoRsp bool, data interface{}) {
 	autoRsp = true
-	//code = common.OK
-	currentTime := uint64(time.Now().Unix())
+	resp := &models.SendToUserMsgRsp{
+		RspCodeInfo: models.RspCodeInfo{
+			Code: common.OK,
+		},
+	}
+	defer func() {
+		if autoRsp {
+			if resp.Code > 0 && resp.CodeMsg == "" {
+				resp.CodeMsg = common.GetErrorMessage(resp.Code, resp.CodeMsg)
+			}
+			data = resp
+		}
+	}()
 
-	request := &models.RegisterReq{}
+	request := &models.SendToUserMsgReq{}
 	if err := json.Unmarshal(message, request); err != nil {
-		//code = common.ParameterIllegal
+		resp.Code = common.ParameterIllegal
+		zap.S().Info("SendToUserMsgReqController,  decode SendToUserMsgReq error, from: ", client.Addr, "seq: ", seq)
 		return
 	}
 
-	fmt.Println("webSocket_request 云手机注册登录", seq, "uuid", request.Uuid, "group ", request.Group)
+	zap.S().Info("SendToUserMsgReqController, receive SendToUserMsgReq", "addr", client.Addr, "ClientId", client.UniClientInfo.ClientId)
 
-	if request.State > 3 { // name的规则也可以放这里匹配
-		//code = common.UnauthorizedUserId
+	msg := &models.UserMsgReq{
+		AppId:   client.AppId,
+		UserId:  client.UserId,
+		Message: request.Message,
+	}
+
+	UnicastToClient(request.AppId, request.UserId, "usrmsg", msg)
+
+	return
+}
+
+func UserMsgRspController(client *Client, seq string, message []byte) (autoRsp bool, data interface{}) {
+	autoRsp = false
+
+	request := &models.SendToUserMsgRsp{}
+	if err := json.Unmarshal(message, request); err != nil {
+		zap.S().Info("UserMsgRspController,  decode SendToUserMsgRsp error, from", client.Addr, "seq", seq)
 		return
 	}
 
-	if !InGroupIds(request.Group) {
-		//code = common.Unauthorized
-		return
-	}
-
-	client.Login(request.Group, request.Uuid, currentTime, true)
-	client.Channel = getChannelId()
-	client.IsCloudmobile = true
-
-	data = &models.RegisterRsp{}
-
-	cloudmobile := models.CloudMobileLogin(serverIp, serverPort, request.Group, request.Uuid, client.Addr, currentTime, true, request.Name, request.State)
-	err := cache.SetUserOnlineInfo(client.GetKey(), cloudmobile)
-	if err != nil {
-		//code = common.ServerError
-		fmt.Println("云手机注册 SetUserOnlineInfo", seq, err)
-		return
-	}
-
-	if err := database.DB().Debug().Create(cloudmobile).Error; err != nil {
-		fmt.Println("write cloud mobile to db failed ", err)
-	}
-
-	// 用户登录
-	login := &login{
-		IsCloudmobile: true,
-		Group:         request.Group,
-		Uuid:          request.Uuid,
-		Client:        client,
-	}
-
-	clientManager.Login <- login
-
-	fmt.Println("云手机注册 成功", seq, client.Addr, request.Uuid)
+	zap.S().Info("UserMsgRspController, receive SendToUserMsgRsp", "addr", client.Addr, "UserId", client.UserId, "from appid", request.AppId, "from userid", request.UserId)
 
 	return
 }

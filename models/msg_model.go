@@ -14,10 +14,13 @@ import (
 
 const (
 	MessageTypeText = "text"
-
 	MessageCmdMsg   = "msg"
 	MessageCmdEnter = "enter"
 	MessageCmdExit  = "exit"
+)
+
+const (
+	UniMsgVersion1Define uint32 = 1
 )
 
 // 消息的定义
@@ -77,23 +80,34 @@ type UniHead struct {
 }
 
 type UniClientInfo struct {
-	BusinessId  uint32 `json:"businessid"`
-	AppId       uint32 `json:"appid"`
-	ClientType  uint32 `json:"clienttype"`
-	ClientId    uint64 `jsons:"clientid"`
-	ClientToken string `json:"clienttokne"`
+	AppId       string `json:"appId,omitempty"`
+	ClientType  uint32 `json:"clientType,omitempty"`
+	ClientId    string `jsons:"clientId,omitempty"`
+	ClientToken string `json:"clientTokne,omitempty"`
+	Platform    string `json:"platform,omitempty"` //平台类型：“android” “ios” "pc" "web" + & +平台版本:“1.0.0”
+	Ua          string `json:"ua,omitempty"`       //“appName&appVersion&渠道”
 }
 
 type RspCodeInfo struct {
-	Code    uint32 `json:"code"`
-	CodeMsg string `json:"codeMsg"`
+	Code    uint32 `json:"code,omitempty"`
+	CodeMsg string `json:"codeMsg,omitempty"`
+}
+
+func (r *RspCodeInfo) IsEmpty() bool {
+	return r.Code == 0 && r.CodeMsg == ""
 }
 
 type UniMessage struct {
 	Head       UniHead         `json:"head,omitempty"`
-	ClientInfo UniClientInfo   `json:"clientinfo,omitempty"`
-	RspCode    RspCodeInfo     `json:"rspCode,omitempty"`
+	ClientInfo *UniClientInfo  `json:"clientinfo,omitempty"`
+	RspCode    *RspCodeInfo    `json:"rspCode,omitempty"`
 	Data       json.RawMessage `json:"data,omitempty"` // 数据 json
+}
+
+type UnicastMessage struct {
+	AppId  string
+	UserId string
+	Data   []byte
 }
 
 func PrepareUniMessage(seq string, cmd string, version uint32, data interface{}) *UniMessage {
@@ -112,7 +126,7 @@ func PrepareUniMessageWithCode(seq string, cmd string, version, code uint32, cod
 	}
 	unimsg := &UniMessage{
 		Head:    UniHead{Seq: seq, Cmd: cmd, Version: version},
-		RspCode: RspCodeInfo{Code: code, CodeMsg: codemsg},
+		RspCode: &RspCodeInfo{Code: code, CodeMsg: codemsg},
 		Data:    jsondata,
 	}
 	return unimsg

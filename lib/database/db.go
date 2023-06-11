@@ -32,7 +32,7 @@ func InitDB() error {
 	if err != nil {
 		return fmt.Errorf("open connection failed, error: %s", err.Error())
 	}
-	db.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&models.UserOnline{})
+	db.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&models.UserOnlineInDb{})
 
 	return nil
 }
@@ -60,5 +60,5 @@ func openConn(dsn string, idle, open int) (*gorm.DB, error) {
 type Writer struct{}
 
 func (w Writer) Printf(format string, args ...interface{}) {
-	zap.S().Debug(fmt.Sprintf(format, args...))
+	zap.S().Debugw(fmt.Sprintf(format, args...))
 }

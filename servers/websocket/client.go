@@ -9,9 +9,12 @@ package websocket
 
 import (
 	"fmt"
+	"gowebsocket/helper"
+	"gowebsocket/models"
 	"runtime/debug"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 const (
@@ -23,22 +26,15 @@ const (
 
 // 用户登录
 type login struct {
-	AppId  uint32
+	AppId  string
 	UserId string
 	Client *Client
-	//add for cloudmobile
-	IsCloudmobile bool
-	Group         uint32
-	Uuid          string
 }
 
 // 读取客户端数据
 func (l *login) GetKey() (key string) {
-	if l.IsCloudmobile {
-		key = GetCloudMobileKey(l.Group, l.Uuid)
-	} else {
-		key = GetUserKey(l.AppId, l.UserId)
-	}
+
+	key = GetUserKey(l.AppId, l.UserId)
 
 	return
 }
@@ -50,38 +46,23 @@ const ( //云手机状态 state取值范围
 
 // 用户连接
 type Client struct {
-	Addr          string          // 客户端地址
-	Socket        *websocket.Conn // 用户连接
-	Send          chan []byte     // 待发送的数据
-	AppId         uint32          // 登录的平台Id app/web/ios
-	UserId        string          // 用户Id，用户登录以后才有
-	FirstTime     uint64          // 首次连接事件
-	HeartbeatTime uint64          // 用户上次心跳时间
-	LoginTime     uint64          // 登录时间 登录以后才有
-	//add for cloudmobile
-	IsCloudmobile bool
-	Group         uint32             //云手机机房id
-	Name          string             //云手机名字
-	Uuid          string             //云手机Uuid
-	Allocated     bool               //是否被分配出去
-	AllocateTime  uint64             //分配的时间
-	AllocateUid   uint32             //分配给哪个uid
-	Channel       uint64             //分配的RTC频道
-	ch            chan *AllocateInfo //用来通知gin框架分配结果的channel
-}
-
-type AllocateInfo struct { //云手机的分配结果
-	Code           uint32
-	Client         *Client
-	Uuid           string
-	Group          uint32
-	Rtc_channel    uint64
-	Signal_channel uint64
+	ConnId        uint64               //连接唯一id
+	Addr          string               // 客户端地址
+	Socket        *websocket.Conn      // 用户连接
+	Send          chan []byte          // 待发送的数据
+	AppId         string               // 登录的平台Id app/web/ios
+	UserId        string               // 用户Id，用户登录以后才有
+	FirstTime     uint64               // 首次连接事件
+	HeartbeatTime uint64               // 用户上次心跳时间
+	LoginTime     uint64               // 登录时间 登录以后才有
+	VerifyTime    uint64               // 连接验证时间
+	UniClientInfo models.UniClientInfo //首次登录时保存的用户信息
 }
 
 // 初始化
 func NewClient(addr string, socket *websocket.Conn, firstTime uint64) (client *Client) {
 	client = &Client{
+		ConnId:        helper.GenUint64Id(),
 		Addr:          addr,
 		Socket:        socket,
 		Send:          make(chan []byte, 100),
@@ -94,11 +75,8 @@ func NewClient(addr string, socket *websocket.Conn, firstTime uint64) (client *C
 
 // 读取客户端数据
 func (c *Client) GetKey() (key string) {
-	if c.IsCloudmobile {
-		key = GetCloudMobileKey(c.Group, c.Uuid)
-	} else {
-		key = GetUserKey(c.AppId, c.UserId)
-	}
+
+	key = GetUserKey(c.AppId, c.UserId)
 
 	return
 }
@@ -126,6 +104,7 @@ func (c *Client) read() {
 
 		// 处理程序
 		fmt.Println("读取客户端数据 处理:", string(message))
+		zap.S().Debugw("client --> server", " connID:", c.ConnId, " addr:", c.Addr, "message:", string(message))
 		ProcessData(c, message)
 	}
 }
@@ -155,6 +134,7 @@ func (c *Client) write() {
 				return
 			}
 
+			zap.S().Debugw("client <-- server", " connID:", c.ConnId, " addr:", c.Addr, "message:", string(message))
 			c.Socket.WriteMessage(websocket.TextMessage, message)
 		}
 	}
@@ -183,14 +163,9 @@ func (c *Client) close() {
 }
 
 // 用户登录
-func (c *Client) Login(appId uint32, userId string, loginTime uint64, isCloudmobile bool) {
-	if isCloudmobile {
-		c.Group = appId
-		c.Uuid = userId
-	} else {
-		c.AppId = appId
-		c.UserId = userId
-	}
+func (c *Client) Login(appId string, userId string, loginTime uint64) {
+	c.AppId = appId
+	c.UserId = userId
 	c.LoginTime = loginTime
 	// 登录成功=心跳一次
 	c.Heartbeat(loginTime)
@@ -216,7 +191,7 @@ func (c *Client) IsHeartbeatTimeout(currentTime uint64) (timeout bool) {
 func (c *Client) IsLogin() (isLogin bool) {
 
 	// 用户登录了
-	if c.UserId != "" || c.Uuid != "" {
+	if c.UserId != "" {
 		isLogin = true
 
 		return

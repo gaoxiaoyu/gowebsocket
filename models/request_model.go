@@ -16,29 +16,26 @@ type Request struct {
 }
 
 // 登录请求数据
-type Login struct {
-	ServiceToken string `json:"serviceToken"` // 验证用户是否登录
-	AppId        uint32 `json:"appId,omitempty"`
-	UserId       string `json:"userId,omitempty"`
+type LoginReq struct {
+	AppId  string `json:"appId,omitempty"`
+	UserId string `json:"userId,omitempty"`
+	Name   string `json:"name,omitempty"`
 }
 
 // 心跳请求数据
 // {"seq":"2324","cmd":"heartbeat","data":{"state"=0}}
-type HeartBeat struct {
-	State uint32 `json:"state"` //0=good&idle 1=bad 2=busy
+type HeartBeatReq struct {
+	State uint32 `json:"state"` //0=good&idle 1=busy
 }
 
-// 登录请求数据
-// 例子： {"seq":"2323","cmd":"register","data":{"uuid":"","state":0,"name":"xxx","group":0}}
-type RegisterReq struct {
-	Uuid  string `json:"uuid"`  //云手机的uuid
-	State uint32 `json:"state"` //0=good 1=bad 2=busy
-	Name  string `json:"name,omitempty"`
-	Group uint32 `json:"group,omitempty"`
+type SendToUserMsgReq struct {
+	AppId   string `json:"appId,omitempty"`
+	UserId  string `json:"userId,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
-// 心跳请求数据
-// 例子： {"seq":"2324","cmd":"cloudmobileheartbeat","data":{"state"=0}}
-type CloudMobileHeartBeat struct {
-	State uint32 `json:"state"` //0=good 1=bad 2=busy
+type UserMsgReq struct {
+	AppId   string `json:"appId,omitempty"`
+	UserId  string `json:"userId,omitempty"`
+	Message string `json:"message,omitempty"`
 }

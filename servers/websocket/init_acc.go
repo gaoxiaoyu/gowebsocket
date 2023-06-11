@@ -9,25 +9,25 @@ package websocket
 
 import (
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/spf13/viper"
 	"gowebsocket/helper"
 	"gowebsocket/models"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/spf13/viper"
 )
 
 var (
-	clientManager = NewClientManager() // 管理者
-	appIds        = []uint32{101, 102} // 全部的平台
-	groupIds      = []uint32{101, 102} // 全部的机房
-
+	clientManager = NewClientManager()                // 管理者
+	appIds        = []string{"ws.test", "ws.offical"} // 全部的平台
+	groupIds      = []uint32{101, 102}                // 全部的机房
 
 	serverIp   string
 	serverPort string
 )
 
-func GetAppIds() []uint32 {
+func GetAppIds() []string {
 
 	return appIds
 }
@@ -46,7 +46,7 @@ func IsLocal(server *models.Server) (isLocal bool) {
 	return
 }
 
-func InAppIds(appId uint32) (inAppId bool) {
+func InAppIds(appId string) (inAppId bool) {
 
 	for _, value := range appIds {
 		if value == appId {
@@ -60,7 +60,7 @@ func InAppIds(appId uint32) (inAppId bool) {
 }
 
 func InGroupIds(groupId uint32) (inGroupIds bool) {
-    inGroupIds = false
+	inGroupIds = false
 	for _, value := range groupIds {
 		if value == groupId {
 			inGroupIds = true
@@ -77,16 +77,15 @@ func StartWebSocket() {
 
 	if err := initSnowFlake(); err != nil {
 		fmt.Println("StartWebSocket 启动雪花算法失败， err ", err)
-
 	}
 
-
 	serverIp = helper.GetServerIp()
+	fmt.Println("StartWebSocket, get serverIp: ", serverIp)
 
 	webSocketPort := viper.GetString("app.webSocketPort")
 	//这里绑定的是错误的IP
 	//rpcPort := viper.GetString("app.rpcPort")
-	//serverPort = rpcPort
+	serverPort = webSocketPort
 
 	http.HandleFunc("/acc", wsPage)
 
@@ -95,7 +94,7 @@ func StartWebSocket() {
 	fmt.Println("WebSocket 启动程序成功", serverIp, webSocketPort)
 
 	//这里在启动了http server 服务，是client到websocket服务的请求端口，配置是8089
-	http.ListenAndServe(":"+webSocketPort, nil)  
+	http.ListenAndServe(":"+webSocketPort, nil)
 }
 
 func wsPage(w http.ResponseWriter, req *http.Request) {

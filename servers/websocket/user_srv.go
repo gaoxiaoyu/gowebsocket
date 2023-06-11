@@ -49,9 +49,9 @@ func UserList() (userList []string) {
 }
 
 // 查询用户是否在线
-func CheckUserOnline(appId uint32, userId string) (online bool) {
+func CheckUserOnline(appId, userId string) (online bool) {
 	// 全平台查询
-	if appId == 0 {
+	if appId == "" {
 		for _, appId := range GetAppIds() {
 			online, _ = checkUserOnline(appId, userId)
 			if online == true {
@@ -66,7 +66,7 @@ func CheckUserOnline(appId uint32, userId string) (online bool) {
 }
 
 // 查询用户 是否在线
-func checkUserOnline(appId uint32, userId string) (online bool, err error) {
+func checkUserOnline(appId string, userId string) (online bool, err error) {
 	key := GetUserKey(appId, userId)
 	userOnline, err := cache.GetUserOnlineInfo(key)
 	if err != nil {
@@ -87,7 +87,7 @@ func checkUserOnline(appId uint32, userId string) (online bool, err error) {
 }
 
 // 给用户发送消息
-func SendUserMessage(appId uint32, userId string, msgId, message string) (sendResults bool, err error) {
+func SendUserMessage(appId, userId string, msgId, message string) (sendResults bool, err error) {
 
 	data := models.GetTextMsgData(userId, msgId, message)
 
@@ -101,7 +101,7 @@ func SendUserMessage(appId uint32, userId string, msgId, message string) (sendRe
 }
 
 // 给本机用户发送消息
-func SendUserMessageLocal(appId uint32, userId string, data string) (sendResults bool, err error) {
+func SendUserMessageLocal(appId, userId string, data string) (sendResults bool, err error) {
 
 	client := GetUserClient(appId, userId)
 
@@ -119,7 +119,7 @@ func SendUserMessageLocal(appId uint32, userId string, data string) (sendResults
 }
 
 // 给全体用户发消息
-func SendUserMessageAll(appId uint32, userId string, msgId, cmd, message string) (sendResults bool, err error) {
+func SendUserMessageAll(appId string, userId string, msgId, cmd, message string) (sendResults bool, err error) {
 	sendResults = true
 
 	currentTime := uint64(time.Now().Unix())

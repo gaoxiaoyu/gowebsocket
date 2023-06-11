@@ -42,11 +42,11 @@ func Online(c *gin.Context) {
 	appIdStr := c.Query("appId")
 
 	fmt.Println("http_request 查看用户是否在线", userId, appIdStr)
-	appId, _ := strconv.ParseInt(appIdStr, 10, 32)
+	//appId, _ := strconv.ParseInt(appIdStr, 10, 32)
 
 	data := make(map[string]interface{})
 
-	online := websocket.CheckUserOnline(uint32(appId), userId)
+	online := websocket.CheckUserOnline(appIdStr, userId)
 	data["userId"] = userId
 	data["online"] = online
 
@@ -63,7 +63,7 @@ func SendMessage(c *gin.Context) {
 
 	fmt.Println("http_request 给用户发送消息", appIdStr, userId, msgId, message)
 
-	appId, _ := strconv.ParseInt(appIdStr, 10, 32)
+	//appId, _ := strconv.ParseInt(appIdStr, 10, 32)
 
 	data := make(map[string]interface{})
 
@@ -74,7 +74,7 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 
-	sendResults, err := websocket.SendUserMessage(uint32(appId), userId, msgId, message)
+	sendResults, err := websocket.SendUserMessage(appIdStr, userId, msgId, message)
 	if err != nil {
 		data["sendResultsErr"] = err.Error()
 	}
@@ -94,7 +94,7 @@ func SendMessageAll(c *gin.Context) {
 
 	fmt.Println("http_request 给全体用户发送消息", appIdStr, userId, msgId, message)
 
-	appId, _ := strconv.ParseInt(appIdStr, 10, 32)
+	//appId, _ := strconv.ParseInt(appIdStr, 10, 32)
 
 	data := make(map[string]interface{})
 	if cache.SeqDuplicates(msgId) {
@@ -104,7 +104,7 @@ func SendMessageAll(c *gin.Context) {
 		return
 	}
 
-	sendResults, err := websocket.SendUserMessageAll(uint32(appId), userId, msgId, models.MessageCmdMsg, message)
+	sendResults, err := websocket.SendUserMessageAll(appIdStr, userId, msgId, models.MessageCmdMsg, message)
 	if err != nil {
 		data["sendResultsErr"] = err.Error()
 
