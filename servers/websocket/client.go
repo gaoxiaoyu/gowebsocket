@@ -12,6 +12,7 @@ import (
 	"gowebsocket/helper"
 	"gowebsocket/models"
 	"runtime/debug"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -51,6 +52,7 @@ type Client struct {
 	Socket        *websocket.Conn      // 用户连接
 	Send          chan []byte          // 待发送的数据
 	Done          chan bool            //表示连接已经完成
+	Received      chan bool            //表示收协程收到消息
 	AppId         string               // 登录的平台Id app/web/ios
 	UserId        string               // 用户Id，用户登录以后才有
 	FirstTime     uint64               // 首次连接事件
@@ -67,6 +69,8 @@ func NewClient(addr string, socket *websocket.Conn, firstTime uint64) (client *C
 		Addr:          addr,
 		Socket:        socket,
 		Send:          make(chan []byte, 100),
+		Done:          make(chan bool, 100),
+		Received:      make(chan bool, 100),
 		FirstTime:     firstTime,
 		HeartbeatTime: firstTime,
 	}
@@ -107,12 +111,16 @@ func (c *Client) read() {
 		// 处理程序
 		fmt.Println("读取客户端数据 处理:", string(message))
 		zap.S().Debugw("client --> server", " connID:", c.ConnId, " addr:", c.Addr, "message:", string(message))
+		c.Received <- true
 		ProcessData(c, message)
 	}
 }
 
 // 向客户端写数据
 func (c *Client) write() {
+	pingTicker := time.NewTicker(time.Second * 30)
+	timeoutTimer := time.NewTimer(time.Second * heartbeatExpirationTime)
+
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("write stop", string(debug.Stack()), r)
@@ -121,6 +129,8 @@ func (c *Client) write() {
 
 	defer func() {
 		c.Socket.Close()
+		pingTicker.Stop()
+		timeoutTimer.Stop()
 		fmt.Println("Client发送数据 defer", c)
 	}()
 
@@ -135,6 +145,20 @@ func (c *Client) write() {
 
 			zap.S().Debugw("client <-- server", " connID:", c.ConnId, " addr:", c.Addr, "message:", string(message))
 			c.Socket.WriteMessage(websocket.TextMessage, message)
+		case <-pingTicker.C:
+			ping := models.Ping{
+				Ts: time.Now().Unix(),
+			}
+			msg := models.BuildUniMessage(helper.GetOrderIdTime(), "ping", models.UniMsgVersion1Define, ping)
+			c.Send <- msg
+
+		case <-timeoutTimer.C:
+			zap.S().Debugw("client::write, timeout timer expired", "connID", c.ConnId, "addr", c.Addr)
+			c.Done <- true
+
+		case <-c.Received:
+			timeoutTimer.Reset(time.Second * heartbeatExpirationTime)
+
 		case <-c.Done:
 			zap.S().Debugw("client::write, done", "connID", c.ConnId, "addr", c.Addr)
 			return

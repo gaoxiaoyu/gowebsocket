@@ -119,6 +119,18 @@ func PrepareUniMessage(seq string, cmd string, version uint32, data interface{})
 	return unimsg
 }
 
+func BuildUniMessage(seq string, cmd string, version uint32, data interface{}) []byte {
+	jsondata, _ := json.Marshal(data)
+	unimsg := &UniMessage{
+		Head: UniHead{Seq: seq, Cmd: cmd, Version: version},
+		Data: jsondata,
+	}
+
+	jsonUnimsg, _ := json.Marshal(unimsg)
+
+	return jsonUnimsg
+}
+
 func PrepareUniMessageWithCode(seq string, cmd string, version, code uint32, codemsg string, data interface{}) *UniMessage {
 	jsondata, _ := json.Marshal(data)
 	if codemsg == "" {

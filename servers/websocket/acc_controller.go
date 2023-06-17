@@ -201,11 +201,11 @@ func SendToUserMsgReqController(client *Client, seq string, message []byte) (aut
 	request := &models.SendToUserMsgReq{}
 	if err := json.Unmarshal(message, request); err != nil {
 		resp.Code = common.ParameterIllegal
-		zap.S().Info("SendToUserMsgReqController,  decode SendToUserMsgReq error, from: ", client.Addr, "seq: ", seq)
+		zap.S().Infow("SendToUserMsgReqController,  decode SendToUserMsgReq error", "from", client.Addr, "seq", seq)
 		return
 	}
 
-	zap.S().Info("SendToUserMsgReqController, receive SendToUserMsgReq", "addr", client.Addr, "ClientId", client.UniClientInfo.ClientId)
+	zap.S().Infow("SendToUserMsgReqController, receive SendToUserMsgReq", "request", request, "addr", client.Addr, "ClientId", client.UniClientInfo.ClientId, "message", request.Message)
 
 	msg := &models.UserMsgReq{
 		AppId:   client.AppId,

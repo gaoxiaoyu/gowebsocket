@@ -39,3 +39,7 @@ type UserMsgReq struct {
 	UserId  string `json:"userId,omitempty"`
 	Message string `json:"message,omitempty"`
 }
+
+type Ping struct {
+	Ts int64 `json:"ts"`
+}
