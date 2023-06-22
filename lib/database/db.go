@@ -32,7 +32,11 @@ func InitDB() error {
 	if err != nil {
 		return fmt.Errorf("open connection failed, error: %s", err.Error())
 	}
-	db.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&models.UserOnlineInDb{})
+	db.Debug().Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&models.UserOnlineInDb{})
+	if err := db.Debug().Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&models.RegisterUser{}); err != nil {
+		zap.S().Errorw("InitDB, init db RegisterUser failed", "error", err)
+		return err
+	}
 
 	return nil
 }

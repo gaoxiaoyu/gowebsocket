@@ -24,3 +24,15 @@ type UserOnlineInDb struct {
 func (UserOnlineInDb) TableName() string {
 	return "UserOnline"
 }
+
+type RegisterUser struct {
+	gorm.Model
+	UserId   uint64 `gorm:"uniqueIndex"`
+	Account  string `gorm:"uniqueIndex;size:255"`
+	Password string
+	NickName string
+}
+
+func (RegisterUser) TableName() string {
+	return "RegisterUser"
+}

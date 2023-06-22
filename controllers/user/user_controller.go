@@ -11,13 +11,28 @@ import (
 	"fmt"
 	"gowebsocket/common"
 	"gowebsocket/controllers"
+	"gowebsocket/helper"
 	"gowebsocket/lib/cache"
+	"gowebsocket/lib/database"
 	"gowebsocket/models"
 	"gowebsocket/servers/websocket"
+	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+var JwtKey = []byte("jwt_secret_key")
+
+type Claims struct {
+	UserId  uint64 `json:"userId"`
+	Account string `json:"account"`
+	jwt.StandardClaims
+}
 
 // 查看全部在线用户
 func List(c *gin.Context) {
@@ -114,4 +129,144 @@ func SendMessageAll(c *gin.Context) {
 
 	controllers.Response(c, common.OK, "", data)
 
+}
+
+func Register(c *gin.Context) {
+	creds := models.Credentials{}
+
+	if err := c.ShouldBindJSON(&creds); err != nil {
+		c.AbortWithStatusJSON(
+			http.StatusInternalServerError,
+			gin.H{"error": err.Error()})
+		return
+	}
+
+	//check local user account mysql
+	var user models.RegisterUser
+	if err := database.DB().Debug().Where("account = ?", creds.Account).First(&user).Error; err != nil {
+		if err != gorm.ErrRecordNotFound {
+			c.AbortWithStatusJSON(
+				http.StatusInternalServerError,
+				gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	if user.Account == creds.Account {
+		c.AbortWithStatusJSON(
+			http.StatusMethodNotAllowed,
+			gin.H{"error": "账号已存在"})
+		return
+	}
+
+	user.Account = creds.Account
+	user.Password = creds.Password
+	user.UserId = helper.GenUint64Id()
+
+	if err := database.DB().Debug().Create(&user).Error; err != nil {
+		c.AbortWithStatusJSON(
+			http.StatusInternalServerError,
+			gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"userId": user.UserId})
+
+}
+
+func Signin(c *gin.Context) {
+	creds := models.Credentials{}
+
+	if err := c.ShouldBindJSON(&creds); err != nil {
+		c.AbortWithStatusJSON(
+			http.StatusInternalServerError,
+			gin.H{"error": err.Error()})
+		return
+	}
+
+	var user models.RegisterUser
+	if err := database.DB().Debug().Where("account = ?", creds.Account).First(&user).Error; err != nil {
+		c.AbortWithStatusJSON(
+			http.StatusInternalServerError,
+			gin.H{"error": err.Error()})
+		return
+	}
+	if user.Password != creds.Password {
+		c.AbortWithStatusJSON(
+			http.StatusUnauthorized,
+			gin.H{"error": "密码错误"})
+		return
+	}
+
+	expirationTime := time.Now().Add(180 * time.Minute)
+	// 创建JWT声明，其中包括用户名和有效时间
+	claims := &Claims{
+		UserId:  user.UserId,
+		Account: creds.Account,
+		StandardClaims: jwt.StandardClaims{
+			// In JWT, the expiry time is expressed as unix milliseconds
+			ExpiresAt: expirationTime.Unix(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	// 创建JWT字符串
+	tokenString, err := token.SignedString(JwtKey)
+
+	if err != nil {
+		// 如果创建JWT时出错，则返回内部服务器错误
+		c.AbortWithStatusJSON(
+			http.StatusInternalServerError,
+			gin.H{"error": err})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+
+}
+
+func JwtAuth(c *gin.Context) {
+	authHeader := c.Request.Header.Get("Authorization")
+	if authHeader == "" {
+		c.AbortWithStatusJSON(
+			http.StatusUnauthorized,
+			gin.H{"error": "header缺少Authorization字段"})
+		return
+	}
+	parts := strings.SplitN(authHeader, " ", 2)
+	if !(len(parts) == 2 && parts[0] == "Bearer") {
+		c.AbortWithStatusJSON(
+			http.StatusUnauthorized,
+			gin.H{"error": "请求头中auth格式有误"})
+		return
+	}
+
+	claims := &Claims{}
+	tknStr := parts[1]
+	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (interface{}, error) {
+		return JwtKey, nil
+	})
+
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			c.AbortWithStatusJSON(
+				http.StatusUnauthorized,
+				gin.H{"error": err})
+			return
+		}
+
+		c.AbortWithStatusJSON(
+			http.StatusBadRequest,
+			gin.H{"error": err})
+		return
+	}
+
+	if !tkn.Valid {
+		c.AbortWithStatusJSON(
+			http.StatusUnauthorized,
+			gin.H{"error": "token invalid"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"account": claims.Account, "userId": claims.UserId})
 }

@@ -25,6 +25,9 @@ func Init(router *gin.Engine) {
 		userRouter.GET("/online", user.Online)
 		userRouter.POST("/sendMessage", user.SendMessage)
 		userRouter.POST("/sendMessageAll", user.SendMessageAll)
+		userRouter.POST("/register", user.Register)
+		userRouter.POST("/signin", user.Signin)
+		userRouter.POST("/jwtauth", user.JwtAuth)
 
 	}
 

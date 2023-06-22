@@ -43,3 +43,8 @@ type UserMsgReq struct {
 type Ping struct {
 	Ts int64 `json:"ts"`
 }
+
+type Credentials struct {
+	Account  string `json:"account"`
+	Password string `json:"password"` //md5(password)
+}
