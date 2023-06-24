@@ -83,7 +83,7 @@ type UniClientInfo struct {
 	AppId       string `json:"appId,omitempty"`
 	ClientType  uint32 `json:"clientType,omitempty"`
 	ClientId    string `jsons:"clientId,omitempty"`
-	ClientToken string `json:"clientTokne,omitempty"`
+	ClientToken string `json:"clientToken,omitempty"`
 	Platform    string `json:"platform,omitempty"` //平台类型：“android” “ios” "pc" "web" + & +平台版本:“1.0.0”
 	Ua          string `json:"ua,omitempty"`       //“appName&appVersion&渠道”
 }

@@ -9,10 +9,13 @@ package websocket
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"gowebsocket/auth"
 	"gowebsocket/common"
 	"gowebsocket/helper"
 	"gowebsocket/models"
+	"strconv"
 	"sync"
 	"time"
 
@@ -126,5 +129,17 @@ func ProcessData(client *Client, message []byte) {
 
 func VerifyClient(client *Client, clientinfo *models.UniClientInfo) error {
 	//todo@: 未来集成jwt，验证长连接接入信息,并且验证appid
+	myclaim, err := auth.JwtVerify(clientinfo.ClientToken)
+	if err != nil {
+		zap.S().Errorw("VerifyClient, JwtVerify err", "err", err, "clientid", clientinfo.ClientId)
+		return err
+	}
+
+	if clientinfo.ClientId != strconv.FormatUint(myclaim.UserId, 10) {
+		zap.S().Errorw("VerifyClient, clientid mismatch", "userid", myclaim.UserId, "clientid", clientinfo.ClientId)
+		return errors.New("jwt userid not equal to clientid")
+	}
+	zap.S().Debugw("VerifyClient, clientid verify pass", "userid", myclaim.UserId, "IssuedAt", myclaim.IssuedAt)
+
 	return nil
 }

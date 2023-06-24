@@ -9,6 +9,7 @@ package user
 
 import (
 	"fmt"
+	"gowebsocket/auth"
 	"gowebsocket/common"
 	"gowebsocket/controllers"
 	"gowebsocket/helper"
@@ -25,14 +26,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
-
-var JwtKey = []byte("jwt_secret_key")
-
-type Claims struct {
-	UserId  uint64 `json:"userId"`
-	Account string `json:"account"`
-	jwt.StandardClaims
-}
 
 // 查看全部在线用户
 func List(c *gin.Context) {
@@ -200,7 +193,7 @@ func Signin(c *gin.Context) {
 
 	expirationTime := time.Now().Add(180 * time.Minute)
 	// 创建JWT声明，其中包括用户名和有效时间
-	claims := &Claims{
+	claims := &auth.Claims{
 		UserId:  user.UserId,
 		Account: creds.Account,
 		StandardClaims: jwt.StandardClaims{
@@ -211,7 +204,7 @@ func Signin(c *gin.Context) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	// 创建JWT字符串
-	tokenString, err := token.SignedString(JwtKey)
+	tokenString, err := token.SignedString(auth.JwtKey)
 
 	if err != nil {
 		// 如果创建JWT时出错，则返回内部服务器错误
@@ -221,7 +214,7 @@ func Signin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+	c.JSON(http.StatusOK, gin.H{"token": tokenString, "userId": user.UserId})
 
 }
 
@@ -241,10 +234,10 @@ func JwtAuth(c *gin.Context) {
 		return
 	}
 
-	claims := &Claims{}
+	claims := &auth.Claims{}
 	tknStr := parts[1]
 	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (interface{}, error) {
-		return JwtKey, nil
+		return auth.JwtKey, nil
 	})
 
 	if err != nil {
