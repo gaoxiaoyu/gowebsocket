@@ -97,7 +97,8 @@ func (c *Client) read() {
 	defer func() {
 		fmt.Println("读取客户端数据 关闭send", c)
 		c.Socket.Close()
-		c.close()
+		c.SendCloseCmd()
+		//c.close()
 	}()
 
 	for {
@@ -182,8 +183,21 @@ func (c *Client) SendMsg(msg []byte) {
 
 	c.Send <- msg
 }
+func (c *Client) SendCloseCmd() {
 
-// 读取客户端数据
+	if c == nil {
+		return
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			zap.S().Errorw("client::SendCloseCmd, panic", "trace", string(debug.Stack()), "recover", r)
+		}
+	}()
+
+	c.Done <- true
+}
+
 func (c *Client) close() {
 	close(c.Send)
 }

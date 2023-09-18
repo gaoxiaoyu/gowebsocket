@@ -152,8 +152,8 @@ func (manager *ClientManager) EventUnregister(client *Client) {
 	// 	cache.SetUserOnlineInfo(client.GetKey(), userOnline)
 	// }
 
-	if err := database.DB().Debug().Where("app_id = ? anduser_id = ?", client.AppId, client.UserId).Delete(&models.UserOnlineInDb{}).Error; err != nil {
-		zap.S().Errorw("EventUnregister, delte user in db err", "err", err, "appid", client.AppId, "userid", client.UserId)
+	if err := database.DB().Debug().Where("app_id = ? and user_id = ?", client.AppId, client.UserId).Delete(&models.UserOnlineInDb{}).Error; err != nil {
+		zap.S().Errorw("EventUnregister, delete user in db err", "err", err, "appid", client.AppId, "userid", client.UserId)
 	}
 
 	// 关闭 chan
